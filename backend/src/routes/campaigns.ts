@@ -1,0 +1,188 @@
+import { Router, Request, Response } from 'express';
+import { getDbPool } from '../db';
+import sql from 'mssql';
+
+const router = Router();
+
+// GET /api/campaigns
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { status, order, limit } = req.query;
+    const pool = await getDbPool();
+    let query = 'SELECT * FROM campaigns WHERE 1=1';
+
+    if (status) {
+      query += ` AND status = '${status}'`;
+    }
+
+    if (order) {
+      const [column, direction] = (order as string).split('.');
+      query += ` ORDER BY ${column} ${direction === 'desc' ? 'DESC' : 'ASC'}`;
+    } else {
+      query += ' ORDER BY is_featured DESC, created_at DESC';
+    }
+
+    if (limit) {
+      query += ` OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
+    }
+
+    const result = await pool.request().query(query);
+
+    res.json({ data: result.recordset });
+  } catch (error) {
+    console.error('Get campaigns error:', error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to fetch campaigns',
+      code: 'FETCH_ERROR',
+    });
+  }
+});
+
+// POST /api/campaigns
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const {
+      title,
+      description,
+      goal_amount,
+      image_url,
+      status,
+      is_featured,
+      receiving_wallet_address,
+    } = req.body;
+
+    if (!title || !goal_amount) {
+      return res.status(400).json({
+        message: 'Title and goal_amount are required',
+        code: 'MISSING_FIELDS',
+      });
+    }
+
+    const pool = await getDbPool();
+    const id = require('crypto').randomUUID();
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('title', sql.NVarChar, title)
+      .input('description', sql.NVarChar(sql.MAX), description || null)
+      .input('goal_amount', sql.NVarChar, goal_amount)
+      .input('current_amount', sql.NVarChar, '0')
+      .input('image_url', sql.NVarChar, image_url || null)
+      .input('status', sql.NVarChar, status || 'active')
+      .input('is_featured', sql.Bit, is_featured || false)
+      .input('receiving_wallet_address', sql.NVarChar, receiving_wallet_address || null)
+      .query(`
+        INSERT INTO campaigns (
+          id, title, description, goal_amount, current_amount,
+          image_url, status, is_featured, receiving_wallet_address
+        )
+        VALUES (
+          @id, @title, @description, @goal_amount, @current_amount,
+          @image_url, @status, @is_featured, @receiving_wallet_address
+        )
+      `);
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('SELECT * FROM campaigns WHERE id = @id');
+
+    res.status(201).json({ data: result.recordset[0] });
+  } catch (error) {
+    console.error('Create campaign error:', error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to create campaign',
+      code: 'CREATE_ERROR',
+    });
+  }
+});
+
+// PATCH /api/campaigns?id=uuid
+router.patch('/', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.query;
+    if (!id) {
+      return res.status(400).json({
+        message: 'Campaign ID is required',
+        code: 'MISSING_ID',
+      });
+    }
+
+    const pool = await getDbPool();
+    const updates: string[] = [];
+    const request = pool.request().input('id', sql.UniqueIdentifier, id);
+
+    if (req.body.title) {
+      request.input('title', sql.NVarChar, req.body.title);
+      updates.push('title = @title');
+    }
+    if (req.body.description !== undefined) {
+      request.input('description', sql.NVarChar(sql.MAX), req.body.description);
+      updates.push('description = @description');
+    }
+    if (req.body.status) {
+      request.input('status', sql.NVarChar, req.body.status);
+      updates.push('status = @status');
+    }
+    if (req.body.is_featured !== undefined) {
+      request.input('is_featured', sql.Bit, req.body.is_featured);
+      updates.push('is_featured = @is_featured');
+    }
+    if (req.body.receiving_wallet_address) {
+      request.input('receiving_wallet_address', sql.NVarChar, req.body.receiving_wallet_address);
+      updates.push('receiving_wallet_address = @receiving_wallet_address');
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        message: 'No fields to update',
+        code: 'NO_UPDATES',
+      });
+    }
+
+    updates.push('updated_at = GETUTCDATE()');
+
+    await request.query(`
+      UPDATE campaigns
+      SET ${updates.join(', ')}
+      WHERE id = @id
+    `);
+
+    const result = await request.query('SELECT * FROM campaigns WHERE id = @id');
+    res.json({ data: result.recordset[0] });
+  } catch (error) {
+    console.error('Update campaign error:', error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to update campaign',
+      code: 'UPDATE_ERROR',
+    });
+  }
+});
+
+// DELETE /api/campaigns?id=uuid
+router.delete('/', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.query;
+    if (!id) {
+      return res.status(400).json({
+        message: 'Campaign ID is required',
+        code: 'MISSING_ID',
+      });
+    }
+
+    const pool = await getDbPool();
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('DELETE FROM campaigns WHERE id = @id');
+
+    res.json({ message: 'Campaign deleted successfully' });
+  } catch (error) {
+    console.error('Delete campaign error:', error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to delete campaign',
+      code: 'DELETE_ERROR',
+    });
+  }
+});
+
+export { router as campaignsRoutes };
+
