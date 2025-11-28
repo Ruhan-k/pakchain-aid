@@ -273,7 +273,7 @@ CampaignCreated(campaignId, title, goalAmount)
 CampaignClosed(campaignId)
 ```
 
-These events sync data between blockchain and Supabase database.
+These events sync data between blockchain and Azure SQL Database.
 
 ## Security Checklist
 

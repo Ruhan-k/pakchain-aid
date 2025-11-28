@@ -8,7 +8,25 @@
  * with existing components.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Get API URL from environment variable or use default
+// For production, this should be set in Azure Static Web Apps configuration
+const getApiBaseUrl = (): string => {
+  // Check if VITE_API_URL is set (build-time variable)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Check if we're in production (deployed on Azure)
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // Default to Azure backend URL if not set
+    return 'https://pakchain-aid-api-b9g0dycsaafegfft.centralus-01.azurewebsites.net';
+  }
+  
+  // Development fallback
+  return 'http://localhost:3000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Types (matching Supabase structure for compatibility)
 export type SessionUser = {

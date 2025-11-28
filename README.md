@@ -81,7 +81,8 @@ npm run dev
 - **Vite** - Build tool
 
 ### Backend/Data
-- **Supabase** - PostgreSQL + real-time API
+- **Azure App Service** - REST API backend
+- **Azure SQL Database** - PostgreSQL database
 - **ethers.js** - Ethereum interaction
 - **MetaMask** - Wallet connection
 
@@ -103,7 +104,8 @@ src/
 │   ├── DonationModal.tsx
 │   └── Chatbot.tsx      # AI assistant
 ├── lib/
-│   ├── supabase.ts      # Database client
+│   ├── api.ts           # Azure API client (Supabase-compatible interface)
+│   ├── supabase.ts      # Compatibility layer (re-exports from api.ts)
 │   └── web3.ts          # Ethereum functions
 ├── App.tsx              # Main application
 ├── main.tsx             # Entry point
@@ -146,12 +148,11 @@ See **TROUBLESHOOTING.md** for solutions to:
 ## Environment Variables
 
 ```env
-# Supabase (provided)
-VITE_SUPABASE_URL=https://...
-VITE_SUPABASE_ANON_KEY=eyJ...
+# Optional: For local development
+VITE_API_URL=http://localhost:3000
 ```
 
-No manual configuration needed. Values already set.
+**Note**: In production (Azure), the API URL is automatically detected. No environment variables needed!
 
 ## Build & Deploy
 
@@ -264,6 +265,7 @@ console.log('Transaction:', txHash);
 ```typescript
 import { supabase } from './lib/supabase';
 
+// Uses Azure backend API (Supabase-compatible interface)
 const { data: campaigns } = await supabase
   .from('campaigns')
   .select('*')
@@ -323,10 +325,10 @@ All tables have:
 - All transaction history immutable
 
 ### Database
-- Row-level security prevents unauthorized access
+- Azure SQL Database with proper authentication
 - Public read access for campaigns/donations
-- Authenticated write access
-- Encrypted API keys
+- Authenticated write access via JWT tokens
+- Environment variables stored securely in Azure
 
 ### Frontend
 - No private keys stored
@@ -424,7 +426,7 @@ MIT License - Open source and free to use
 ### Get Help
 1. Check TROUBLESHOOTING.md first
 2. Review browser console (F12)
-3. Check Supabase dashboard
+3. Check Azure App Service logs
 4. Verify MetaMask connection
 
 ### Report Issues
@@ -447,7 +449,7 @@ Built with:
 - React & TypeScript
 - Tailwind CSS
 - ethers.js
-- Supabase
+- Azure App Service & SQL Database
 - Ethereum
 - Lucide icons
 
