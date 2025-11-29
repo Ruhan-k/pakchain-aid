@@ -15,16 +15,30 @@ router.get('/', async (req: Request, res: Response) => {
       query += ` AND status = '${status}'`;
     }
 
-    if (order) {
-      const [column, direction] = (order as string).split('.');
-      // Sanitize column name to prevent SQL injection
-      const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
-      query += ` ORDER BY ${safeColumn} ${direction === 'desc' ? 'DESC' : 'ASC'}`;
-    } else {
-      // Default ordering - handle case where created_at might not exist
-      if (req.query.order === undefined) {
+    // Handle order parameter(s) - can be string or array
+    const orderParams = Array.isArray(order) ? order : (order ? [order] : []);
+    
+    if (orderParams.length > 0) {
+      const orderClauses: string[] = [];
+      for (const orderParam of orderParams) {
+        if (typeof orderParam === 'string' && orderParam.includes('.')) {
+          const [column, direction] = orderParam.split('.');
+          // Sanitize column name to prevent SQL injection
+          const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
+          if (safeColumn) {
+            orderClauses.push(`${safeColumn} ${direction === 'desc' ? 'DESC' : 'ASC'}`);
+          }
+        }
+      }
+      if (orderClauses.length > 0) {
+        query += ` ORDER BY ${orderClauses.join(', ')}`;
+      } else {
+        // Fallback to default ordering if parsing failed
         query += ' ORDER BY is_featured DESC, created_at DESC';
       }
+    } else {
+      // Default ordering
+      query += ' ORDER BY is_featured DESC, created_at DESC';
     }
 
     if (limit) {

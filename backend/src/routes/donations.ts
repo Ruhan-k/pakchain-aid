@@ -26,9 +26,27 @@ router.get('/', async (req: Request, res: Response) => {
       query += ` AND d.status = '${status}'`;
     }
 
-    if (order) {
-      const [column, direction] = (order as string).split('.');
-      query += ` ORDER BY d.${column} ${direction === 'desc' ? 'DESC' : 'ASC'}`;
+    // Handle order parameter(s) - can be string or array
+    const orderParams = Array.isArray(order) ? order : (order ? [order] : []);
+    
+    if (orderParams.length > 0) {
+      const orderClauses: string[] = [];
+      for (const orderParam of orderParams) {
+        if (typeof orderParam === 'string' && orderParam.includes('.')) {
+          const [column, direction] = orderParam.split('.');
+          // Sanitize column name to prevent SQL injection
+          const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
+          if (safeColumn) {
+            orderClauses.push(`d.${safeColumn} ${direction === 'desc' ? 'DESC' : 'ASC'}`);
+          }
+        }
+      }
+      if (orderClauses.length > 0) {
+        query += ` ORDER BY ${orderClauses.join(', ')}`;
+      } else {
+        // Fallback to default ordering
+        query += ' ORDER BY d.created_at DESC';
+      }
     } else {
       query += ' ORDER BY d.created_at DESC';
     }
