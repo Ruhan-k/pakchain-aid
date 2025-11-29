@@ -65,29 +65,12 @@ export function CampaignsList({
     }
   };
 
-    fetchCampaigns();
-    
-    // Poll for updates every 30 seconds (less aggressive, only when page is visible)
-    // Stop polling if there are errors to avoid spamming the server
-    let errorCount = 0;
-    const maxErrors = 3;
-    
-    const pollInterval = setInterval(() => {
-      // Only poll if page is visible and not too many errors
-      if (isMounted && document.visibilityState === 'visible' && errorCount < maxErrors) {
-        fetchCampaigns().catch(() => {
-          errorCount++;
-          if (errorCount >= maxErrors) {
-            console.warn('Too many polling errors, stopping auto-refresh');
-            clearInterval(pollInterval);
-          }
-        });
-      }
-    }, 30000); // 30 seconds instead of 5
+    // Fetch campaigns once on mount or when filter changes
+    void fetchCampaigns();
 
+    // Cleanup on unmount
     return () => {
       isMounted = false;
-      clearInterval(pollInterval);
     };
   }, [filter]);
 
