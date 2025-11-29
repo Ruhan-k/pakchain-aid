@@ -278,13 +278,8 @@ export function Contact() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Email Support</h3>
               <p className="text-sm text-gray-600">
-                For direct inquiries, you can also reach us at{' '}
-                <a
-                  href="mailto:khalidruhan854@gmail.com"
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  khalidruhan854@gmail.com
-                </a>
+                Our team reviews all messages sent through this form and will get back to you using
+                the email address you provide above.
               </p>
             </div>
           </div>
