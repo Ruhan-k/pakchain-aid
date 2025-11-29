@@ -51,7 +51,6 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [newCampaign, setNewCampaign] = useState<CampaignFormState>({
     title: '',
     description: '',
@@ -216,7 +215,6 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
       if (campaignsArray && Array.isArray(campaignsArray) && campaignsArray.length > 0) {
         console.log('✅ Campaign created successfully:', campaignsArray[0]);
         setShowCreateModal(false);
-        setImagePreview(null);
         setNewCampaign({
           title: '',
           description: '',
@@ -957,10 +955,7 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-900">Create New Campaign</h2>
                 <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setImagePreview(null);
-                  }}
+                  onClick={() => setShowCreateModal(false)}
                   className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                   title="Close"
                 >
@@ -1011,72 +1006,37 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Campaign Image (optional)
+                  Image URL (optional)
                 </label>
                 <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      // Validate file size (max 5MB)
-                      if (file.size > 5 * 1024 * 1024) {
-                        alert('Image size must be less than 5MB. Please choose a smaller image.');
-                        e.target.value = '';
-                        return;
-                      }
-                      
-                      // Validate file type
-                      if (!file.type.startsWith('image/')) {
-                        alert('Please select a valid image file.');
-                        e.target.value = '';
-                        return;
-                      }
-
-                      // Convert to base64 data URL
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        const base64String = reader.result as string;
-                        setNewCampaign({ ...newCampaign, image_url: base64String });
-                        setImagePreview(base64String);
-                      };
-                      reader.onerror = () => {
-                        alert('Failed to read image file. Please try again.');
-                        e.target.value = '';
-                      };
-                      reader.readAsDataURL(file);
-                    } else {
-                      setNewCampaign({ ...newCampaign, image_url: '' });
-                      setImagePreview(null);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                  type="url"
+                  value={newCampaign.image_url}
+                  onChange={(e) =>
+                    setNewCampaign({ ...newCampaign, image_url: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="https://..."
                 />
-                {imagePreview && (
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-500 mb-2">Preview:</p>
-                    <img
-                      src={imagePreview}
-                      alt="Campaign preview"
-                      className="max-w-full h-48 object-cover rounded-lg border border-gray-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewCampaign({ ...newCampaign, image_url: '' });
-                        setImagePreview(null);
-                        // Reset file input
-                        const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-                        if (fileInput) fileInput.value = '';
-                      }}
-                      className="mt-2 text-xs text-red-600 hover:text-red-700 font-medium"
-                    >
-                      Remove image
-                    </button>
-                  </div>
-                )}
                 <p className="text-xs text-gray-500 mt-1">
-                  Upload an image from your device (max 5MB, JPG/PNG/GIF)
+                  Upload an image to a hosting service (e.g.,{' '}
+                  <a
+                    href="https://imgur.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    Imgur
+                  </a>
+                  ,{' '}
+                  <a
+                    href="https://cloudinary.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    Cloudinary
+                  </a>
+                  ) and paste the direct image URL here. The URL should end with .jpg, .png, .gif, etc.
                 </p>
               </div>
               <div>
@@ -1181,10 +1141,7 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
                   Create Campaign
                 </button>
                 <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setImagePreview(null);
-                  }}
+                  onClick={() => setShowCreateModal(false)}
                   className="flex-1 px-6 py-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition-colors"
                 >
                   Cancel
