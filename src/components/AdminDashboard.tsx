@@ -74,8 +74,17 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
             .order('created_at', { ascending: false });
           if (campaignsError) {
             console.error('Error fetching campaigns:', campaignsError);
+            setCampaigns([]);
+            break;
           }
-          setCampaigns(campaignsData || []);
+          
+          // Handle nested data structure from API
+          let campaignsArray = campaignsData;
+          if (campaignsData && typeof campaignsData === 'object' && !Array.isArray(campaignsData) && campaignsData.data) {
+            campaignsArray = Array.isArray(campaignsData.data) ? campaignsData.data : [campaignsData.data];
+          }
+          
+          setCampaigns(Array.isArray(campaignsArray) ? campaignsArray : []);
           break;
         }
         case 'donations': {

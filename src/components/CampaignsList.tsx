@@ -38,10 +38,23 @@ export function CampaignsList({
           .order('is_featured', { ascending: false })
           .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching campaigns:', error);
         if (isMounted) {
-      setCampaigns(data || []);
+          setCampaigns([]);
         }
+        return;
+      }
+      
+      // Handle nested data structure from API
+      let campaignsArray = data;
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.data) {
+        campaignsArray = Array.isArray(data.data) ? data.data : [data.data];
+      }
+      
+      if (isMounted) {
+        setCampaigns(Array.isArray(campaignsArray) ? campaignsArray : []);
+      }
     } catch (err) {
       console.error('Error fetching campaigns:', err);
     } finally {
@@ -52,16 +65,17 @@ export function CampaignsList({
   };
 
     fetchCampaigns();
-    const subscription = supabase
-      .channel('campaigns_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, () => {
+    
+    // Poll for updates every 5 seconds (since real-time subscriptions don't work with Azure API)
+    const pollInterval = setInterval(() => {
+      if (isMounted) {
         fetchCampaigns();
-      })
-      .subscribe();
+      }
+    }, 5000);
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      clearInterval(pollInterval);
     };
   }, [filter]);
 

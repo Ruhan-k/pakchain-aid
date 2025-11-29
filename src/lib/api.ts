@@ -388,32 +388,69 @@ export const supabase = {
           },
 
           async maybeSingle() {
-            const result = await apiRequest<any>(currentQuery);
-            if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-              return { data: result.data[0], error: null };
+            const result = await apiRequest<{ data: any[] } | any[]>(currentQuery);
+            if (result.error) {
+              return { data: null, error: result.error };
+            }
+            
+            // Handle nested data structure
+            let dataArray: any[] = [];
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                dataArray = result.data;
+              } else if (result.data.data && Array.isArray(result.data.data)) {
+                dataArray = result.data.data;
+              }
+            }
+            
+            if (dataArray.length > 0) {
+              return { data: dataArray[0], error: null };
             }
             return { data: null, error: null };
           },
 
           async single() {
-            const result = await apiRequest<any>(currentQuery);
+            const result = await apiRequest<{ data: any[] } | any[]>(currentQuery);
             if (result.error) {
               return { data: null, error: result.error };
             }
-            if (Array.isArray(result.data) && result.data.length === 1) {
-              return { data: result.data[0], error: null };
+            
+            // Handle nested data structure
+            let dataArray: any[] = [];
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                dataArray = result.data;
+              } else if (result.data.data && Array.isArray(result.data.data)) {
+                dataArray = result.data.data;
+              }
+            }
+            
+            if (dataArray.length === 1) {
+              return { data: dataArray[0], error: null };
             }
             return { data: null, error: { message: 'Expected single result' } };
           },
 
           async then<T>(resolve: (value: { data: T[]; error: null }) => void) {
-            const result = await apiRequest<T[]>(currentQuery);
+            const result = await apiRequest<{ data: T[] } | T[]>(currentQuery);
             if (result.error) {
               // Return empty array on error to prevent crashes
               resolve({ data: [], error: null });
               return;
             }
-            resolve({ data: Array.isArray(result.data) ? result.data : [], error: null });
+            
+            // Handle nested data structure: { data: [...] } or [...]
+            let dataArray: T[] = [];
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                dataArray = result.data;
+              } else if (result.data.data && Array.isArray(result.data.data)) {
+                // Backend returned { data: [...] }
+                dataArray = result.data.data;
+              }
+            }
+            
+            resolve({ data: dataArray, error: null });
           },
         };
 
