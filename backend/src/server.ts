@@ -7,6 +7,7 @@ import { campaignsRoutes } from './routes/campaigns';
 import { donationsRoutes } from './routes/donations';
 import { usersRoutes } from './routes/users';
 import { adminsRoutes } from './routes/admins';
+import { contactRoutes } from './routes/contact';
 
 dotenv.config();
 
@@ -94,6 +95,7 @@ app.use('/api/campaigns', campaignsRoutes);
 app.use('/api/donations', donationsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admins', adminsRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

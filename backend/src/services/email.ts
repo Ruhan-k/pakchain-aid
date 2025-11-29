@@ -86,6 +86,102 @@ export async function sendOTPEmail(email: string, otpCode: string): Promise<void
 }
 
 /**
+ * Send contact form email
+ */
+export async function sendContactEmail(
+  name: string,
+  email: string,
+  subject: string,
+  message: string
+): Promise<void> {
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.warn('Email service not configured. EMAIL_USER and EMAIL_PASS must be set.');
+    throw new Error('Email service is not configured. Please set EMAIL_USER and EMAIL_PASS environment variables.');
+  }
+
+  const CONTACT_EMAIL = 'khalidruhan854@gmail.com';
+
+  const mailOptions = {
+    from: `"PakChain Aid Contact Form" <${EMAIL_FROM}>`,
+    to: CONTACT_EMAIL,
+    replyTo: email,
+    subject: `Contact Form: ${subject}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .field { margin-bottom: 20px; }
+            .field-label { font-weight: bold; color: #667eea; margin-bottom: 5px; }
+            .field-value { background: white; padding: 15px; border-radius: 5px; border-left: 3px solid #667eea; }
+            .message-box { background: white; padding: 20px; border-radius: 5px; border-left: 3px solid #667eea; white-space: pre-wrap; }
+            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>PakChain Aid</h1>
+              <p>New Contact Form Submission</p>
+            </div>
+            <div class="content">
+              <div class="field">
+                <div class="field-label">Name:</div>
+                <div class="field-value">${name}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Email:</div>
+                <div class="field-value">${email}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Subject:</div>
+                <div class="field-value">${subject}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Message:</div>
+                <div class="message-box">${message.replace(/\n/g, '<br>')}</div>
+              </div>
+              <div class="footer">
+                <p>This message was sent from the PakChain Aid contact form.</p>
+                <p>You can reply directly to this email to respond to ${name}.</p>
+                <p>© ${new Date().getFullYear()} PakChain Aid. All rights reserved.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+    text: `
+      PakChain Aid - New Contact Form Submission
+      
+      Name: ${name}
+      Email: ${email}
+      Subject: ${subject}
+      
+      Message:
+      ${message}
+      
+      ---
+      This message was sent from the PakChain Aid contact form.
+      You can reply directly to this email to respond to ${name}.
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Contact form email sent:', info.messageId);
+  } catch (error) {
+    console.error('Error sending contact form email:', error);
+    throw new Error('Failed to send contact form email');
+  }
+}
+
+/**
  * Verify email transporter configuration
  */
 export async function verifyEmailConfig(): Promise<boolean> {
