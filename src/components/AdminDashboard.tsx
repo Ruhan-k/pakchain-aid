@@ -196,8 +196,15 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         return;
       }
 
-      if (data && data.length > 0) {
-        console.log('✅ Campaign created successfully:', data[0]);
+      // Handle nested data structure: data might be { data: [...] } or [...]
+      let campaignsArray = data;
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.data) {
+        campaignsArray = Array.isArray(data.data) ? data.data : [data.data];
+        console.log('🔧 Extracted campaigns array from nested structure:', campaignsArray);
+      }
+
+      if (campaignsArray && Array.isArray(campaignsArray) && campaignsArray.length > 0) {
+        console.log('✅ Campaign created successfully:', campaignsArray[0]);
         setShowCreateModal(false);
         setNewCampaign({
           title: '',
@@ -213,7 +220,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         await refreshData();
         alert('Campaign created successfully!');
       } else {
-        console.warn('⚠️ Campaign creation returned no data:', data);
+        console.warn('⚠️ Campaign creation returned no data:', { data, campaignsArray });
+        console.warn('⚠️ Data type:', typeof data, 'Is array:', Array.isArray(data));
         alert('Campaign creation completed but no data returned. Please refresh and check if the campaign was created.');
         await refreshData();
       }

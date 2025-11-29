@@ -423,19 +423,30 @@ export const supabase = {
       insert(values: unknown) {
         return {
           select() {
-            return apiRequest<any[]>(baseEndpoint, {
+            return apiRequest<{ data: any[] }>(baseEndpoint, {
               method: 'POST',
               body: JSON.stringify(values),
             }).then((result) => {
               if (result.error) {
                 return { data: [], error: result.error };
               }
-              // Handle both array and single object responses
-              if (Array.isArray(result.data)) {
-                return { data: result.data, error: null };
+              // Backend returns { data: [...] }, so result.data is { data: [...] }
+              // We need to extract the inner data array
+              if (result.data) {
+                if (result.data.data && Array.isArray(result.data.data)) {
+                  // Backend returned { data: [...] } - extract the array
+                  return { data: result.data.data, error: null };
+                } else if (Array.isArray(result.data)) {
+                  // Backend returned [...] directly (shouldn't happen but handle it)
+                  return { data: result.data, error: null };
+                } else if (result.data.data && !Array.isArray(result.data.data)) {
+                  // Backend returned { data: {...} } - single object, wrap in array
+                  return { data: [result.data.data], error: null };
+                }
               }
-              // If single object, wrap in array
-              return { data: result.data ? [result.data] : [], error: null };
+              // Fallback: empty array
+              console.warn('Unexpected API response format:', result.data);
+              return { data: [], error: null };
             });
           },
 
