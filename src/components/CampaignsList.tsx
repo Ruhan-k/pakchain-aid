@@ -25,7 +25,7 @@ export function CampaignsList({
   useEffect(() => {
     let isMounted = true;
 
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = async (): Promise<void> => {
     try {
       setLoading(true);
       let query = supabase.from('campaigns').select('*');
@@ -43,7 +43,7 @@ export function CampaignsList({
         if (isMounted) {
           setCampaigns([]);
         }
-        return;
+        throw error; // Re-throw for polling error handler
       }
       
       // Handle nested data structure from API
@@ -57,21 +57,33 @@ export function CampaignsList({
       }
     } catch (err) {
       console.error('Error fetching campaigns:', err);
+      throw err; // Re-throw for polling error handler
     } finally {
-        if (isMounted) {
+      if (isMounted) {
       setLoading(false);
-        }
+      }
     }
   };
 
     fetchCampaigns();
     
-    // Poll for updates every 5 seconds (since real-time subscriptions don't work with Azure API)
+    // Poll for updates every 30 seconds (less aggressive, only when page is visible)
+    // Stop polling if there are errors to avoid spamming the server
+    let errorCount = 0;
+    const maxErrors = 3;
+    
     const pollInterval = setInterval(() => {
-      if (isMounted) {
-        fetchCampaigns();
+      // Only poll if page is visible and not too many errors
+      if (isMounted && document.visibilityState === 'visible' && errorCount < maxErrors) {
+        fetchCampaigns().catch(() => {
+          errorCount++;
+          if (errorCount >= maxErrors) {
+            console.warn('Too many polling errors, stopping auto-refresh');
+            clearInterval(pollInterval);
+          }
+        });
       }
-    }, 5000);
+    }, 30000); // 30 seconds instead of 5
 
     return () => {
       isMounted = false;

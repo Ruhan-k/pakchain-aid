@@ -62,7 +62,10 @@ router.get('/', async (req: Request, res: Response) => {
       }
     }
 
-    console.log('Executing campaigns query:', query.replace(/\s+/g, ' ').trim());
+    // Remove console.log in production to reduce noise
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Executing campaigns query:', query.replace(/\s+/g, ' ').trim());
+    }
     const result = await request.query(query);
 
     res.json({ data: result.recordset });
