@@ -25,9 +25,28 @@ function App() {
   const [showDonationModal, setShowDonationModal] = useState(false);
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [admin, setAdmin] = useState<Admin | null>(null);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(window.location.pathname === '/admin');
   const [showUserAuth, setShowUserAuth] = useState(false);
   const [user, setUser] = useState<SupabaseAuthUser | null>(null);
+
+  // Check URL path for /admin route when path changes
+  useEffect(() => {
+    const checkPath = () => {
+      const path = window.location.pathname;
+      if (path === '/admin') {
+        setShowAdminLogin(true);
+      } else {
+        setShowAdminLogin(false);
+      }
+    };
+
+    // Listen for popstate (back/forward buttons)
+    window.addEventListener('popstate', checkPath);
+
+    return () => {
+      window.removeEventListener('popstate', checkPath);
+    };
+  }, []);
 
   const checkUserSession = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -49,6 +68,8 @@ function App() {
   const handleAdminLogin = useCallback((loggedInAdmin: Admin) => {
     setAdmin(loggedInAdmin);
     setShowAdminLogin(false);
+    // Update URL to remove /admin from path after successful login
+    window.history.replaceState({}, '', '/');
   }, []);
 
   const handleAdminLogout = useCallback(() => {
@@ -457,12 +478,15 @@ function App() {
     return <AdminDashboard admin={admin} onLogout={handleAdminLogout} />;
   }
 
-  // If showing admin login, show login page
-  if (showAdminLogin) {
+  // If showing admin login (via /admin URL), show login page
+  if (showAdminLogin || window.location.pathname === '/admin') {
     return (
       <AdminLogin
         onLoginSuccess={handleAdminLogin}
-        onCancel={() => setShowAdminLogin(false)}
+        onCancel={() => {
+          setShowAdminLogin(false);
+          window.history.replaceState({}, '', '/');
+        }}
       />
     );
   }
@@ -474,7 +498,6 @@ function App() {
         onConnectWallet={handleConnectWallet}
         onNavigate={(page) => setCurrentPage(page as Page)}
         currentPage={currentPage}
-        onAdminLogin={() => setShowAdminLogin(true)}
         onUserAuth={() => setShowUserAuth(true)}
         user={user}
       />

@@ -134,7 +134,8 @@ export function CampaignDetails({ campaign, onClose }: CampaignDetailsProps) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        {/* Donations table with scrollable area for long histories */}
+        <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-12 text-gray-500 gap-2">
               <Loader className="w-5 h-5 animate-spin" />
@@ -145,7 +146,7 @@ export function CampaignDetails({ campaign, onClose }: CampaignDetailsProps) {
               No transactions found for this campaign.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-80 md:max-h-[50vh]">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
