@@ -233,7 +233,11 @@ function App() {
       await checkNetwork();
     } catch (error) {
       console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet. Please make sure MetaMask is installed.');
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const mobileMessage = isMobile 
+        ? '\n\nOn mobile, open this site inside your Ethereum wallet app\'s browser (e.g. MetaMask, Trust Wallet) to connect your wallet.'
+        : '';
+      alert('Failed to connect wallet. Please make sure MetaMask is installed.' + mobileMessage);
     }
   };
 

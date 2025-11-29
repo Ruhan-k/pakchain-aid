@@ -129,14 +129,6 @@ export function Navigation({
             )}
           </div>
 
-          {/* Mobile wallet notice (small hint for app-based wallets) */}
-          <div className="hidden md:block ml-4">
-            <p className="text-[11px] text-gray-400 leading-tight">
-              On mobile, open this site inside your Ethereum wallet app&apos;s browser (e.g. MetaMask,
-              Trust Wallet) to connect your wallet.
-            </p>
-          </div>
-
           {/* Mobile Menu Button */}
           <button
             className="md:hidden"
