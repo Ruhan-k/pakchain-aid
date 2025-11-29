@@ -165,7 +165,7 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         ? ethers.parseEther(newCampaign.platform_fee_amount).toString()
         : null;
 
-      const { data, error } = await supabase.from('campaigns').insert({
+      const campaignData = {
         title: newCampaign.title.trim(),
         description: newCampaign.description.trim() || null,
         goal_amount: goalInWei,
@@ -177,18 +177,27 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         platform_fee_address: newCampaign.platform_fee_address.trim() || null,
         platform_fee_amount: platformFeeInWei,
         // created_by can be null since admin doesn't use Supabase Auth
-      }).select();
+      };
+
+      console.log('📤 Creating campaign with data:', campaignData);
+      console.log('🔗 API Base URL:', window.location.origin);
+
+      const { data, error } = await supabase.from('campaigns').insert(campaignData).select();
+
+      console.log('📥 Campaign creation response:', { data, error });
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Supabase error:', error);
         console.error('Error code:', error.code);
         console.error('Error message:', error.message);
         console.error('Error details:', error.details);
-        alert(`Failed to create campaign: ${error.message || 'Unknown error'}\n\nCheck browser console (F12) for details.`);
+        console.error('Full error object:', JSON.stringify(error, null, 2));
+        alert(`Failed to create campaign: ${error.message || 'Unknown error'}\n\nError code: ${error.code || 'N/A'}\n\nCheck browser console (F12) for details.`);
         return;
       }
 
-      if (data) {
+      if (data && data.length > 0) {
+        console.log('✅ Campaign created successfully:', data[0]);
         setShowCreateModal(false);
         setNewCampaign({
           title: '',
@@ -202,9 +211,16 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
           platform_fee_amount: '',
         });
         await refreshData();
+        alert('Campaign created successfully!');
+      } else {
+        console.warn('⚠️ Campaign creation returned no data:', data);
+        alert('Campaign creation completed but no data returned. Please refresh and check if the campaign was created.');
+        await refreshData();
       }
     } catch (error) {
-      console.error('Error creating campaign:', error);
+      console.error('❌ Exception creating campaign:', error);
+      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       alert(`Failed to create campaign: ${errorMessage}\n\nCheck browser console (F12) for details.`);
     }
