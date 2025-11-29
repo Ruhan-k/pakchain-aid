@@ -11,48 +11,69 @@ router.get('/', async (req: Request, res: Response) => {
     const pool = await getDbPool();
     let query = 'SELECT * FROM campaigns WHERE 1=1';
 
+    // Handle status filter - use parameterized query for security
+    const request = pool.request();
     if (status) {
-      query += ` AND status = '${status}'`;
+      request.input('status', sql.NVarChar, status);
+      query += ' AND status = @status';
     }
 
-    // Handle order parameter(s) - can be string or array
-    const orderParams = Array.isArray(order) ? order : (order ? [order] : []);
-    
-    if (orderParams.length > 0) {
-      const orderClauses: string[] = [];
+    // Handle order parameter(s) - Express parses ?order=x&order=y as an array
+    let orderClauses: string[] = [];
+    if (order) {
+      // Convert to array if single value
+      const orderParams = Array.isArray(order) ? order : [order];
+      
       for (const orderParam of orderParams) {
         if (typeof orderParam === 'string' && orderParam.includes('.')) {
-          const [column, direction] = orderParam.split('.');
-          // Sanitize column name to prevent SQL injection
-          const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
-          if (safeColumn) {
-            orderClauses.push(`${safeColumn} ${direction === 'desc' ? 'DESC' : 'ASC'}`);
+          const parts = orderParam.split('.');
+          if (parts.length === 2) {
+            const [column, direction] = parts;
+            // Sanitize column name - only allow alphanumeric and underscore
+            const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
+            const safeDirection = direction.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+            
+            // Validate column name exists in campaigns table
+            const validColumns = ['id', 'title', 'description', 'goal_amount', 'current_amount', 
+                                 'image_url', 'status', 'created_at', 'updated_at', 'is_featured', 
+                                 'receiving_wallet_address', 'platform_fee_address', 'platform_fee_amount'];
+            
+            if (safeColumn && validColumns.includes(safeColumn)) {
+              orderClauses.push(`${safeColumn} ${safeDirection}`);
+            }
           }
         }
       }
-      if (orderClauses.length > 0) {
-        query += ` ORDER BY ${orderClauses.join(', ')}`;
-      } else {
-        // Fallback to default ordering if parsing failed
-        query += ' ORDER BY is_featured DESC, created_at DESC';
-      }
+    }
+    
+    // Add ORDER BY clause
+    if (orderClauses.length > 0) {
+      query += ` ORDER BY ${orderClauses.join(', ')}`;
     } else {
       // Default ordering
       query += ' ORDER BY is_featured DESC, created_at DESC';
     }
 
+    // Handle limit
     if (limit) {
-      query += ` OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
+      const limitNum = parseInt(String(limit), 10);
+      if (!isNaN(limitNum) && limitNum > 0 && limitNum <= 1000) {
+        query += ` OFFSET 0 ROWS FETCH NEXT ${limitNum} ROWS ONLY`;
+      }
     }
 
-    const result = await pool.request().query(query);
+    console.log('Executing campaigns query:', query.replace(/\s+/g, ' ').trim());
+    const result = await request.query(query);
 
     res.json({ data: result.recordset });
   } catch (error) {
     console.error('Get campaigns error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Request query params:', req.query);
     res.status(500).json({
       message: error instanceof Error ? error.message : 'Failed to fetch campaigns',
       code: 'FETCH_ERROR',
+      details: process.env.NODE_ENV !== 'production' ? (error instanceof Error ? error.stack : undefined) : undefined,
     });
   }
 });
