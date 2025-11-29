@@ -84,6 +84,17 @@ export async function adminLogin(username: string, password: string): Promise<Ad
       console.error('❌ Invalid password!');
       console.error('💡 Make sure you entered the correct password');
       console.error('💡 Default password is: admin123');
+      console.error('');
+      console.error('🔍 DEBUG INFO:');
+      console.error('  Generated hash:', genHash);
+      console.error('  Database hash:', dbHash);
+      console.error('  Hash match:', isValid);
+      console.error('');
+      console.error('🔧 TO FIX:');
+      console.error('1. Verify admin user exists in Azure SQL Database');
+      console.error('2. Check password_hash in database matches SHA-256 of "admin123"');
+      console.error('3. Expected hash: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918');
+      console.error('4. Run: SELECT username, password_hash FROM admins WHERE username = \'admin\';');
       return null;
     }
 

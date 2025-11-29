@@ -386,7 +386,12 @@ export const supabase = {
               if (result.error) {
                 return { data: [], error: result.error };
               }
-              return { data: Array.isArray(result.data) ? result.data : [], error: null };
+              // Handle both array and single object responses
+              if (Array.isArray(result.data)) {
+                return { data: result.data, error: null };
+              }
+              // If single object, wrap in array
+              return { data: result.data ? [result.data] : [], error: null };
             });
           },
 

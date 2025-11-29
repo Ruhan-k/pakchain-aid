@@ -17,9 +17,14 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (order) {
       const [column, direction] = (order as string).split('.');
-      query += ` ORDER BY ${column} ${direction === 'desc' ? 'DESC' : 'ASC'}`;
+      // Sanitize column name to prevent SQL injection
+      const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
+      query += ` ORDER BY ${safeColumn} ${direction === 'desc' ? 'DESC' : 'ASC'}`;
     } else {
-      query += ' ORDER BY is_featured DESC, created_at DESC';
+      // Default ordering - handle case where created_at might not exist
+      if (req.query.order === undefined) {
+        query += ' ORDER BY is_featured DESC, created_at DESC';
+      }
     }
 
     if (limit) {
@@ -92,7 +97,8 @@ router.post('/', async (req: Request, res: Response) => {
       .input('id', sql.UniqueIdentifier, id)
       .query('SELECT * FROM campaigns WHERE id = @id');
 
-    res.status(201).json({ data: result.recordset[0] });
+    // Return as array to match Supabase format
+    res.status(201).json({ data: [result.recordset[0]] });
   } catch (error) {
     console.error('Create campaign error:', error);
     res.status(500).json({
