@@ -43,6 +43,7 @@ export function Navigation({
     { id: 'home', label: 'Home' },
     { id: 'campaigns', label: 'Campaigns' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'about', label: 'About Us' },
   ];
 
   const truncateAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;

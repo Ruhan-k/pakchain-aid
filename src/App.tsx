@@ -11,10 +11,11 @@ import { Chatbot } from './components/Chatbot';
 import { AdminLogin } from './components/AdminLogin';
 import { AdminDashboard } from './components/AdminDashboard';
 import { UserAuth } from './components/UserAuth';
+import { About } from './components/About';
 import { getAdminSession, clearAdminSession, Admin } from './lib/adminAuth';
 import { ethers } from 'ethers';
 
-type Page = 'home' | 'campaigns' | 'dashboard';
+type Page = 'home' | 'campaigns' | 'dashboard' | 'about';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -441,6 +442,8 @@ function App() {
         );
       case 'dashboard':
         return <Dashboard />;
+	  case 'about':
+		return <About />;
       default:
         return <Hero onExplore={() => setCurrentPage('campaigns')} />;
     }
@@ -523,6 +526,14 @@ function App() {
                     className="hover:text-blue-600 transition-colors"
                   >
                     Analytics
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setCurrentPage('about')}
+                    className="hover:text-blue-600 transition-colors"
+                  >
+                    About Us
                   </button>
                 </li>
               </ul>
