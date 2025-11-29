@@ -128,17 +128,25 @@ router.post('/send-otp', async (req: Request, res: Response) => {
     const otpCode = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+    // Normalize email (lowercase, trim)
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Store OTP
-    otpStore.set(email.toLowerCase(), { code: otpCode, expiresAt });
+    otpStore.set(normalizedEmail, { code: otpCode, expiresAt });
+    console.log(`OTP stored for ${normalizedEmail}, expires at ${expiresAt.toISOString()}, current time: ${new Date().toISOString()}`);
 
     // Send email
     try {
       await sendOTPEmail(email, otpCode);
-      console.log(`OTP sent to ${email}`);
+      console.log(`OTP sent to ${email} - Code: ${otpCode}`);
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
-      // Still return success to prevent email enumeration
-      // In production, you might want to log this differently
+      console.error('Email error details:', JSON.stringify(emailError, null, 2));
+      // Return error so user knows email failed
+      return res.status(500).json({
+        message: `Failed to send email: ${emailError instanceof Error ? emailError.message : 'Unknown error'}. Please check server logs.`,
+        code: 'EMAIL_SEND_ERROR',
+      });
     }
 
     res.json({
@@ -176,17 +184,26 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
     // Clean expired OTPs
     cleanExpiredOTPs();
 
+    // Normalize email (lowercase, trim)
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Verify OTP
-    const storedOTP = otpStore.get(email.toLowerCase());
+    const storedOTP = otpStore.get(normalizedEmail);
+    console.log(`Verifying OTP for ${normalizedEmail}, stored OTP exists: ${!!storedOTP}`);
+    
     if (!storedOTP) {
+      console.log(`OTP not found for ${normalizedEmail}. Available emails in store: ${Array.from(otpStore.keys()).join(', ')}`);
       return res.status(400).json({
         message: 'OTP not found or expired. Please request a new code.',
         code: 'OTP_NOT_FOUND',
       });
     }
 
-    if (storedOTP.expiresAt < new Date()) {
-      otpStore.delete(email.toLowerCase());
+    const now = new Date();
+    console.log(`OTP check - Expires: ${storedOTP.expiresAt.toISOString()}, Now: ${now.toISOString()}, Difference: ${(storedOTP.expiresAt.getTime() - now.getTime()) / 1000} seconds`);
+
+    if (storedOTP.expiresAt < now) {
+      otpStore.delete(normalizedEmail);
       return res.status(400).json({
         message: 'OTP expired. Please request a new code.',
         code: 'OTP_EXPIRED',
@@ -194,6 +211,7 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
     }
 
     if (storedOTP.code !== token) {
+      console.log(`OTP mismatch - Expected: ${storedOTP.code}, Received: ${token}`);
       return res.status(400).json({
         message: 'Invalid OTP code. Please try again.',
         code: 'INVALID_OTP',
@@ -201,7 +219,8 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
     }
 
     // OTP verified - remove it from store
-    otpStore.delete(email.toLowerCase());
+    otpStore.delete(normalizedEmail);
+    console.log(`OTP verified successfully for ${normalizedEmail}`);
 
     // Get or create user
     const pool = await getDbPool();
