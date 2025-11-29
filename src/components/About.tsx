@@ -38,7 +38,7 @@ export function About() {
         stronger sense of connection between both sides.
       </p>
 
-      <p className="text-lg text-gray-700 leading-relaxed">
+      <p className="text-lg text-gray-700 leading-relaxed mb-6">
         PakChain Aid is built by a team of BS FinTech students from FAST-NUCES:{" "}
         <span className="font-semibold">
           Ruhan Khalid, Izaan Omair, Areeb Rahid, Aimen Bint-e, and Omama Khan
@@ -52,6 +52,12 @@ export function About() {
         project, but as a reflection of the kind of future we want to help build in the FinTech
         world: one where innovation serves people first, where financial tools are accessible and
         understandable, and where trust is earned through openness rather than marketing.
+      </p>
+
+      <p className="text-lg text-gray-700 leading-relaxed">
+        This project is part of our Blockchain course, developed under the guidance of{" "}
+        <span className="font-semibold">Dr. Shahbaz Siddiqui, PhD</span>. We are grateful for his
+        mentorship and support throughout this journey.
       </p>
     </div>
   );

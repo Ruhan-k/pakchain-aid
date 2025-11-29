@@ -12,10 +12,11 @@ import { AdminLogin } from './components/AdminLogin';
 import { AdminDashboard } from './components/AdminDashboard';
 import { UserAuth } from './components/UserAuth';
 import { About } from './components/About';
+import { Contact } from './components/Contact';
 import { getAdminSession, clearAdminSession, Admin } from './lib/adminAuth';
 import { ethers } from 'ethers';
 
-type Page = 'home' | 'campaigns' | 'dashboard' | 'about';
+type Page = 'home' | 'campaigns' | 'dashboard' | 'about' | 'contact';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -442,8 +443,10 @@ function App() {
         );
       case 'dashboard':
         return <Dashboard />;
-	  case 'about':
-		return <About />;
+      case 'about':
+        return <About />;
+      case 'contact':
+        return <Contact />;
       default:
         return <Hero onExplore={() => setCurrentPage('campaigns')} />;
     }
@@ -575,6 +578,9 @@ function App() {
           <div className="border-t border-gray-200 pt-8">
             <p className="text-center text-sm text-gray-600">
               © 2024 PakChain Aid. All transactions recorded on Ethereum blockchain.
+            </p>
+            <p className="text-center text-xs text-gray-500 mt-2">
+              Blockchain course project under the guidance of Dr. Shahbaz Siddiqui, PhD
             </p>
           </div>
         </div>

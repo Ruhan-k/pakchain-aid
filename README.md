@@ -445,6 +445,8 @@ For questions or support:
 
 ## Acknowledgments
 
+This project is part of a Blockchain course project developed under the guidance of **Dr. Shahbaz Siddiqui, PhD**.
+
 Built with:
 - React & TypeScript
 - Tailwind CSS
