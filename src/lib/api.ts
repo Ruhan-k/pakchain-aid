@@ -28,6 +28,12 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Log API URL in development
+if (import.meta.env.DEV) {
+  console.log('🔗 API Base URL:', API_BASE_URL);
+  console.log('🌐 Current hostname:', window.location.hostname);
+}
+
 // Types (matching Supabase structure for compatibility)
 export type SessionUser = {
   id: string;
@@ -120,13 +126,30 @@ async function apiRequest<T>(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    
+    // Log request details in development
+    if (import.meta.env.DEV) {
+      console.log('🌐 API Request:', {
+        method: options.method || 'GET',
+        url: fullUrl,
+        hasToken: !!token,
+      });
+    }
+
+    const response = await fetch(fullUrl, {
       ...options,
       headers,
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('❌ API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        url: fullUrl,
+      });
       return {
         data: null,
         error: {
@@ -139,11 +162,32 @@ async function apiRequest<T>(
     const data = await response.json();
     return { data, error: null };
   } catch (error) {
-    console.error('API request error:', error);
+    console.error('❌ API request error:', error);
+    console.error('🔍 Request details:', {
+      endpoint,
+      method: options.method || 'GET',
+      apiBaseUrl: API_BASE_URL,
+      fullUrl: `${API_BASE_URL}${endpoint}`,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorType: error instanceof TypeError ? 'Network/CORS error' : 'Other error',
+    });
+    
+    // Provide more helpful error message
+    let errorMessage = 'Network error';
+    if (error instanceof TypeError) {
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = `Failed to connect to API at ${API_BASE_URL}. Check if the backend is running and CORS is configured correctly.`;
+      } else {
+        errorMessage = error.message;
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return {
       data: null,
       error: {
-        message: error instanceof Error ? error.message : 'Network error',
+        message: errorMessage,
         code: 'NETWORK_ERROR',
       },
     };

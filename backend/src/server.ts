@@ -14,9 +14,57 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+// CORS configuration - allow multiple origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5174',
+  'https://gray-ground-0184ebd1e.3.azurestaticapps.net',
+  'https://*.azurestaticapps.net', // Allow all Azure Static Web Apps
+];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      console.log('⚠️ Request with no origin - allowing');
+      return callback(null, true);
+    }
+    
+    console.log(`🌐 CORS check for origin: ${origin}`);
+    
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed.includes('*')) {
+        // Handle wildcard domains
+        const pattern = allowed.replace('*.', '');
+        const matches = origin.includes(pattern);
+        if (matches) console.log(`✅ Origin matched wildcard pattern: ${pattern}`);
+        return matches;
+      }
+      const matches = origin === allowed;
+      if (matches) console.log(`✅ Origin matched: ${allowed}`);
+      return matches;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      // In development, allow all origins
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`⚠️ Origin not in list but allowing (dev mode): ${origin}`);
+        callback(null, true);
+      } else {
+        // In production, log the blocked origin for debugging
+        console.warn(`❌ CORS blocked origin: ${origin}`);
+        console.warn(`   Allowed origins: ${allowedOrigins.join(', ')}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(express.json());
