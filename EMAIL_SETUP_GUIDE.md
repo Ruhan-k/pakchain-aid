@@ -16,12 +16,37 @@ The application uses **nodemailer** to send OTP verification emails. You can con
 
 ### Step 1: Enable App Password in Gmail
 
+**Important**: App Passwords are only available for:
+- Personal Google accounts (not Google Workspace/Enterprise accounts)
+- Accounts with 2-Step Verification enabled
+
+#### Method 1: Direct Link to App Passwords
+
+1. Go directly to: https://myaccount.google.com/apppasswords
+2. If you see "App passwords aren't available for your account", see **Alternative Options** below
+3. If available, select **Mail** and **Other (Custom name)**
+4. Enter "PakChain Aid" and click **Generate**
+5. Copy the 16-character password (you'll need this)
+
+#### Method 2: Through Security Settings
+
 1. Go to your Google Account: https://myaccount.google.com/
-2. Click **Security** → **2-Step Verification** (enable if not already)
-3. Scroll down and click **App passwords**
-4. Select **Mail** and **Other (Custom name)**
-5. Enter "PakChain Aid" and click **Generate**
-6. Copy the 16-character password (you'll need this)
+2. Click **Security** in the left menu
+3. Under **How you sign in to Google**, find **2-Step Verification**
+4. Click on **2-Step Verification** (not the toggle, but the text/link)
+5. Scroll down to find **App passwords** (it's at the bottom of the 2-Step Verification page)
+6. Click **App passwords**
+7. Select **Mail** and **Other (Custom name)**
+8. Enter "PakChain Aid" and click **Generate**
+9. Copy the 16-character password
+
+#### If App Passwords Are Not Available:
+
+If you can't find App Passwords, you might have:
+- **Google Workspace account**: Use SendGrid or another email service instead (see Option 3)
+- **Account type that doesn't support it**: Use SendGrid (recommended - it's free and easier)
+
+**Quick Alternative**: Skip to **Option 3: SendGrid** below - it's actually easier and more reliable!
 
 ### Step 2: Set Environment Variables in Azure
 
@@ -74,7 +99,16 @@ EMAIL_FROM = your-email@gmail.com
 
 You'll need to update `backend/src/services/email.ts` to use Azure Communication Services SDK instead of nodemailer. This requires additional setup.
 
-## Option 3: SendGrid (Popular Alternative)
+## Option 3: SendGrid (Recommended - Easiest Setup!)
+
+**Why SendGrid?**
+- ✅ Free tier: 100 emails/day (perfect for testing)
+- ✅ Works with any email account type
+- ✅ No App Password needed
+- ✅ More reliable than Gmail SMTP
+- ✅ Better for production use
+
+### Step 1: Create SendGrid Account
 
 ### Step 1: Create SendGrid Account
 
@@ -118,10 +152,17 @@ After setting up email:
 3. **Test SMTP connection**: The email service verifies connection on startup
 4. **Check spam folder**: OTP emails might be filtered
 
-### Gmail "Less secure app" error?
+### Gmail "Less secure app" error or can't find App Passwords?
 
+**If you can't find App Passwords:**
+- You might have a Google Workspace account (App Passwords not available)
+- Try the direct link: https://myaccount.google.com/apppasswords
+- **Solution**: Use SendGrid instead (Option 3) - it's easier and more reliable!
+
+**If you see "Less secure app" error:**
 - Use App Passwords (not your regular password)
 - Make sure 2-Step Verification is enabled
+- If still not working, switch to SendGrid (Option 3)
 
 ### Azure Communication Services not working?
 

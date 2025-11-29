@@ -51,6 +51,8 @@ export type Campaign = {
   created_at: string;
   is_featured: boolean;
   receiving_wallet_address: string | null;
+  platform_fee_address: string | null;
+  platform_fee_amount: string | null;
 };
 
 export type Donation = {

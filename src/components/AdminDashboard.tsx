@@ -32,6 +32,8 @@ type CampaignFormState = {
   status: 'active' | 'inactive' | 'completed';
   is_featured: boolean;
   receiving_wallet_address: string;
+  platform_fee_address: string;
+  platform_fee_amount: string;
 };
 
 type DonationWithCampaign = Donation & {
@@ -57,6 +59,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
     status: 'active',
     is_featured: false,
     receiving_wallet_address: '',
+    platform_fee_address: '',
+    platform_fee_amount: '',
   });
 
   const fetchData = useCallback(async () => {
@@ -144,7 +148,23 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         return;
       }
 
+      // Validate platform fee address if provided
+      if (newCampaign.platform_fee_address && !ethers.isAddress(newCampaign.platform_fee_address)) {
+        alert('Please enter a valid Ethereum wallet address for platform fee collection');
+        return;
+      }
+
+      // Validate platform fee amount if address is provided
+      if (newCampaign.platform_fee_address && (!newCampaign.platform_fee_amount || parseFloat(newCampaign.platform_fee_amount) <= 0)) {
+        alert('Please enter a valid platform fee amount (greater than 0) when platform fee address is set');
+        return;
+      }
+
       const goalInWei = ethers.parseEther(newCampaign.goal_amount).toString();
+      const platformFeeInWei = newCampaign.platform_fee_amount 
+        ? ethers.parseEther(newCampaign.platform_fee_amount).toString()
+        : null;
+
       const { data, error } = await supabase.from('campaigns').insert({
         title: newCampaign.title.trim(),
         description: newCampaign.description.trim() || null,
@@ -154,6 +174,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         status: newCampaign.status,
         is_featured: newCampaign.is_featured,
         receiving_wallet_address: newCampaign.receiving_wallet_address.trim(),
+        platform_fee_address: newCampaign.platform_fee_address.trim() || null,
+        platform_fee_amount: platformFeeInWei,
         // created_by can be null since admin doesn't use Supabase Auth
       }).select();
 
@@ -176,6 +198,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
           status: 'active',
           is_featured: false,
           receiving_wallet_address: '',
+          platform_fee_address: '',
+          platform_fee_amount: '',
         });
         await refreshData();
       }
@@ -194,14 +218,32 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         return;
       }
 
+      // Validate platform fee if provided
+      if (editingCampaign.platform_fee_address && !ethers.isAddress(editingCampaign.platform_fee_address)) {
+        alert('Please enter a valid Ethereum wallet address for platform fee collection');
+        return;
+      }
+
       const updates: Partial<Campaign> & { updated_at: string } = {
         title: editingCampaign.title,
         description: editingCampaign.description,
         status: editingCampaign.status,
         is_featured: editingCampaign.is_featured,
         receiving_wallet_address: editingCampaign.receiving_wallet_address.trim(),
+        platform_fee_address: editingCampaign.platform_fee_address?.trim() || null,
         updated_at: new Date().toISOString(),
       };
+
+      // Handle platform fee amount
+      if (editingCampaign.platform_fee_address && editingCampaign.platform_fee_amount) {
+        if (editingCampaign.platform_fee_amount.includes('.')) {
+          updates.platform_fee_amount = ethers.parseEther(editingCampaign.platform_fee_amount).toString();
+        } else {
+          updates.platform_fee_amount = editingCampaign.platform_fee_amount;
+        }
+      } else {
+        updates.platform_fee_amount = null;
+      }
 
       if (editingCampaign.goal_amount && !editingCampaign.goal_amount.includes('.')) {
         // Already in wei
@@ -453,6 +495,54 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
                                 <p className="text-xs text-gray-500 mt-1">
                                   Ethereum address that will receive donations
                                 </p>
+                              </div>
+                              <div className="border-t border-gray-200 pt-3 mt-3">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Platform Fee (Optional)</h4>
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                      Platform Fee Address
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={editingCampaign.platform_fee_address || ''}
+                                      onChange={(e) =>
+                                        setEditingCampaign({
+                                          ...editingCampaign,
+                                          platform_fee_address: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs"
+                                      placeholder="0x... (optional)"
+                                    />
+                                  </div>
+                                  {editingCampaign.platform_fee_address && (
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                        Platform Fee Amount (ETH)
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="0.001"
+                                        min="0"
+                                        value={editingCampaign.platform_fee_amount 
+                                          ? (editingCampaign.platform_fee_amount.includes('.') 
+                                              ? editingCampaign.platform_fee_amount 
+                                              : ethers.formatEther(editingCampaign.platform_fee_amount))
+                                          : ''}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          setEditingCampaign({
+                                            ...editingCampaign,
+                                            platform_fee_amount: value,
+                                          });
+                                        }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+                                        placeholder="0.001"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex gap-2">
                                 <select
@@ -911,6 +1001,49 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
                 <p className="text-xs text-gray-500 mt-1">
                   Ethereum address that will receive donations for this campaign
                 </p>
+              </div>
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Platform Fee (Optional)</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Platform Fee Address (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newCampaign.platform_fee_address}
+                      onChange={(e) =>
+                        setNewCampaign({ ...newCampaign, platform_fee_address: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                      placeholder="0x... (leave empty to disable platform fee)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ethereum address to receive platform fees. If set, platform fee will be collected on each donation.
+                    </p>
+                  </div>
+                  {newCampaign.platform_fee_address && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Platform Fee Amount (ETH)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        value={newCampaign.platform_fee_amount}
+                        onChange={(e) =>
+                          setNewCampaign({ ...newCampaign, platform_fee_amount: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder="0.001"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Fee amount per transaction. This will be added to the donation amount the user pays.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-4">
                 <div>

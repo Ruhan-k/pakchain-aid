@@ -262,9 +262,24 @@ function App() {
     }
 
     try {
-      // Send direct wallet-to-wallet transaction
-      const { sendDonationDirect, verifyTransaction, getProvider } = await import('./lib/web3');
-      const txHash = await sendDonationDirect(selectedCampaign.receiving_wallet_address, amount);
+      // Send donation with platform fee if enabled
+      const { sendDonationWithFee, sendDonationDirect, verifyTransaction, getProvider } = await import('./lib/web3');
+      
+      let txHash: string;
+      
+      // Check if platform fee is enabled
+      if (selectedCampaign.platform_fee_address && selectedCampaign.platform_fee_amount) {
+        const platformFeeEth = ethers.formatEther(selectedCampaign.platform_fee_amount);
+        txHash = await sendDonationWithFee(
+          selectedCampaign.receiving_wallet_address,
+          selectedCampaign.platform_fee_address,
+          amount,
+          platformFeeEth,
+        );
+      } else {
+        // No platform fee, use direct donation
+        txHash = await sendDonationDirect(selectedCampaign.receiving_wallet_address, amount);
+      }
 
       // Wait for transaction to be mined
       const provider = await getProvider();

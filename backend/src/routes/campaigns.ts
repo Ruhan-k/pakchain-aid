@@ -49,6 +49,8 @@ router.post('/', async (req: Request, res: Response) => {
       status,
       is_featured,
       receiving_wallet_address,
+      platform_fee_address,
+      platform_fee_amount,
     } = req.body;
 
     if (!title || !goal_amount) {
@@ -71,14 +73,18 @@ router.post('/', async (req: Request, res: Response) => {
       .input('status', sql.NVarChar, status || 'active')
       .input('is_featured', sql.Bit, is_featured || false)
       .input('receiving_wallet_address', sql.NVarChar, receiving_wallet_address || null)
+      .input('platform_fee_address', sql.NVarChar, platform_fee_address || null)
+      .input('platform_fee_amount', sql.NVarChar, platform_fee_amount || null)
       .query(`
         INSERT INTO campaigns (
           id, title, description, goal_amount, current_amount,
-          image_url, status, is_featured, receiving_wallet_address
+          image_url, status, is_featured, receiving_wallet_address,
+          platform_fee_address, platform_fee_amount
         )
         VALUES (
           @id, @title, @description, @goal_amount, @current_amount,
-          @image_url, @status, @is_featured, @receiving_wallet_address
+          @image_url, @status, @is_featured, @receiving_wallet_address,
+          @platform_fee_address, @platform_fee_amount
         )
       `);
 
@@ -130,6 +136,14 @@ router.patch('/', async (req: Request, res: Response) => {
     if (req.body.receiving_wallet_address) {
       request.input('receiving_wallet_address', sql.NVarChar, req.body.receiving_wallet_address);
       updates.push('receiving_wallet_address = @receiving_wallet_address');
+    }
+    if (req.body.platform_fee_address !== undefined) {
+      request.input('platform_fee_address', sql.NVarChar, req.body.platform_fee_address || null);
+      updates.push('platform_fee_address = @platform_fee_address');
+    }
+    if (req.body.platform_fee_amount !== undefined) {
+      request.input('platform_fee_amount', sql.NVarChar, req.body.platform_fee_amount || null);
+      updates.push('platform_fee_amount = @platform_fee_amount');
     }
 
     if (updates.length === 0) {

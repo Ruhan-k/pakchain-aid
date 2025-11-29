@@ -97,6 +97,55 @@ export const sendDonationDirect = async (
   return tx.hash;
 };
 
+// Send donation with platform fee split
+export const sendDonationWithFee = async (
+  campaignAddress: string,
+  platformFeeAddress: string | null,
+  donationAmountInEth: string,
+  platformFeeAmountInEth: string,
+) => {
+  if (!ethers.isAddress(campaignAddress)) {
+    throw new Error('Invalid campaign wallet address');
+  }
+
+  const signer = await getSigner();
+  const donationAmountWei = ethers.parseEther(donationAmountInEth);
+  
+  // If platform fee is enabled, send two transactions
+  if (platformFeeAddress && platformFeeAmountInEth && parseFloat(platformFeeAmountInEth) > 0) {
+    if (!ethers.isAddress(platformFeeAddress)) {
+      throw new Error('Invalid platform fee wallet address');
+    }
+
+    const platformFeeWei = ethers.parseEther(platformFeeAmountInEth);
+    const totalAmountWei = donationAmountWei + platformFeeWei;
+
+    // Send platform fee first
+    const feeTx = await signer.sendTransaction({
+      to: platformFeeAddress,
+      value: platformFeeWei,
+    });
+    await feeTx.wait(); // Wait for fee transaction to complete
+
+    // Then send donation
+    const donationTx = await signer.sendTransaction({
+      to: campaignAddress,
+      value: donationAmountWei,
+    });
+
+    // Return the donation transaction hash (main transaction)
+    return donationTx.hash;
+  } else {
+    // No platform fee, just send donation
+    const tx = await signer.sendTransaction({
+      to: campaignAddress,
+      value: donationAmountWei,
+    });
+
+    return tx.hash;
+  }
+};
+
 // Legacy contract-based donation (kept for backward compatibility)
 export const sendDonation = async (
   contractAddress: string,
