@@ -112,7 +112,7 @@ router.post('/', async (req: Request, res: Response) => {
       .input('description', sql.NVarChar(sql.MAX), description || null)
       .input('goal_amount', sql.NVarChar, goal_amount)
       .input('current_amount', sql.NVarChar, '0')
-      .input('image_url', sql.NVarChar, image_url || null)
+      .input('image_url', sql.NVarChar(sql.MAX), image_url || null)
       .input('status', sql.NVarChar, status || 'active')
       .input('is_featured', sql.Bit, is_featured || false)
       .input('receiving_wallet_address', sql.NVarChar, receiving_wallet_address || null)
