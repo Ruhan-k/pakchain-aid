@@ -50,6 +50,13 @@ export function DonationModal({
   };
 
   const goalEth = ethers.formatEther(campaign.goal_amount);
+  
+  // Calculate platform fee if enabled
+  const platformFeeEth = campaign.platform_fee_amount 
+    ? ethers.formatEther(campaign.platform_fee_amount)
+    : '0';
+  const hasPlatformFee = campaign.platform_fee_address && parseFloat(platformFeeEth) > 0;
+  const totalAmount = parseFloat(amount) + (hasPlatformFee ? parseFloat(platformFeeEth) : 0);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -165,15 +172,32 @@ export function DonationModal({
               </div>
 
               {/* Fee Info */}
-              <div className="bg-gray-50 rounded-lg p-3">
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">You send:</span>
+                  <span className="text-gray-600">Donation amount:</span>
                   <span className="font-semibold text-gray-900">{amount} ETH</span>
                 </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-gray-600">Network fee:</span>
-                  <span className="font-semibold text-gray-900">Varies</span>
-                </div>
+                {hasPlatformFee && (
+                  <>
+                    <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
+                      <span className="text-gray-600">Platform fee:</span>
+                      <span className="font-semibold text-gray-900">{platformFeeEth} ETH</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1 border-t border-gray-300 font-semibold">
+                      <span className="text-gray-700">Total you pay:</span>
+                      <span className="text-blue-600">{totalAmount.toFixed(6)} ETH</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {platformFeeEth} ETH will go to platform, {amount} ETH to campaign
+                    </p>
+                  </>
+                )}
+                {!hasPlatformFee && (
+                  <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
+                    <span className="text-gray-600">Network fee:</span>
+                    <span className="font-semibold text-gray-900">Varies</span>
+                  </div>
+                )}
               </div>
 
               {/* Donate Button */}

@@ -11,29 +11,72 @@ router.get('/', async (req: Request, res: Response) => {
     const pool = await getDbPool();
     let query = 'SELECT * FROM campaigns WHERE 1=1';
 
+    // Handle status filter - use parameterized query for security
+    const request = pool.request();
     if (status) {
-      query += ` AND status = '${status}'`;
+      request.input('status', sql.NVarChar, status);
+      query += ' AND status = @status';
     }
 
+    // Handle order parameter(s) - Express parses ?order=x&order=y as an array
+    let orderClauses: string[] = [];
     if (order) {
-      const [column, direction] = (order as string).split('.');
-      query += ` ORDER BY ${column} ${direction === 'desc' ? 'DESC' : 'ASC'}`;
+      // Convert to array if single value
+      const orderParams = Array.isArray(order) ? order : [order];
+      
+      for (const orderParam of orderParams) {
+        if (typeof orderParam === 'string' && orderParam.includes('.')) {
+          const parts = orderParam.split('.');
+          if (parts.length === 2) {
+            const [column, direction] = parts;
+            // Sanitize column name - only allow alphanumeric and underscore
+            const safeColumn = column.replace(/[^a-zA-Z0-9_]/g, '');
+            const safeDirection = direction.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+            
+            // Validate column name exists in campaigns table
+            const validColumns = ['id', 'title', 'description', 'goal_amount', 'current_amount', 
+                                 'image_url', 'status', 'created_at', 'updated_at', 'is_featured', 
+                                 'receiving_wallet_address', 'platform_fee_address', 'platform_fee_amount'];
+            
+            if (safeColumn && validColumns.includes(safeColumn)) {
+              orderClauses.push(`${safeColumn} ${safeDirection}`);
+            }
+          }
+        }
+      }
+    }
+    
+    // Add ORDER BY clause
+    if (orderClauses.length > 0) {
+      query += ` ORDER BY ${orderClauses.join(', ')}`;
     } else {
+      // Default ordering
       query += ' ORDER BY is_featured DESC, created_at DESC';
     }
 
+    // Handle limit
     if (limit) {
-      query += ` OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
+      const limitNum = parseInt(String(limit), 10);
+      if (!isNaN(limitNum) && limitNum > 0 && limitNum <= 1000) {
+        query += ` OFFSET 0 ROWS FETCH NEXT ${limitNum} ROWS ONLY`;
+      }
     }
 
-    const result = await pool.request().query(query);
+    // Remove console.log in production to reduce noise
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Executing campaigns query:', query.replace(/\s+/g, ' ').trim());
+    }
+    const result = await request.query(query);
 
     res.json({ data: result.recordset });
   } catch (error) {
     console.error('Get campaigns error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Request query params:', req.query);
     res.status(500).json({
       message: error instanceof Error ? error.message : 'Failed to fetch campaigns',
       code: 'FETCH_ERROR',
+      details: process.env.NODE_ENV !== 'production' ? (error instanceof Error ? error.stack : undefined) : undefined,
     });
   }
 });
@@ -49,6 +92,8 @@ router.post('/', async (req: Request, res: Response) => {
       status,
       is_featured,
       receiving_wallet_address,
+      platform_fee_address,
+      platform_fee_amount,
     } = req.body;
 
     if (!title || !goal_amount) {
@@ -71,14 +116,18 @@ router.post('/', async (req: Request, res: Response) => {
       .input('status', sql.NVarChar, status || 'active')
       .input('is_featured', sql.Bit, is_featured || false)
       .input('receiving_wallet_address', sql.NVarChar, receiving_wallet_address || null)
+      .input('platform_fee_address', sql.NVarChar, platform_fee_address || null)
+      .input('platform_fee_amount', sql.NVarChar, platform_fee_amount || null)
       .query(`
         INSERT INTO campaigns (
           id, title, description, goal_amount, current_amount,
-          image_url, status, is_featured, receiving_wallet_address
+          image_url, status, is_featured, receiving_wallet_address,
+          platform_fee_address, platform_fee_amount
         )
         VALUES (
           @id, @title, @description, @goal_amount, @current_amount,
-          @image_url, @status, @is_featured, @receiving_wallet_address
+          @image_url, @status, @is_featured, @receiving_wallet_address,
+          @platform_fee_address, @platform_fee_amount
         )
       `);
 
@@ -86,7 +135,8 @@ router.post('/', async (req: Request, res: Response) => {
       .input('id', sql.UniqueIdentifier, id)
       .query('SELECT * FROM campaigns WHERE id = @id');
 
-    res.status(201).json({ data: result.recordset[0] });
+    // Return as array to match Supabase format
+    res.status(201).json({ data: [result.recordset[0]] });
   } catch (error) {
     console.error('Create campaign error:', error);
     res.status(500).json({
@@ -130,6 +180,14 @@ router.patch('/', async (req: Request, res: Response) => {
     if (req.body.receiving_wallet_address) {
       request.input('receiving_wallet_address', sql.NVarChar, req.body.receiving_wallet_address);
       updates.push('receiving_wallet_address = @receiving_wallet_address');
+    }
+    if (req.body.platform_fee_address !== undefined) {
+      request.input('platform_fee_address', sql.NVarChar, req.body.platform_fee_address || null);
+      updates.push('platform_fee_address = @platform_fee_address');
+    }
+    if (req.body.platform_fee_amount !== undefined) {
+      request.input('platform_fee_amount', sql.NVarChar, req.body.platform_fee_amount || null);
+      updates.push('platform_fee_amount = @platform_fee_amount');
     }
 
     if (updates.length === 0) {

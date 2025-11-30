@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wallet, Menu, X, Settings, User, LogOut } from 'lucide-react';
+import { Wallet, Menu, X, User, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js';
 
@@ -8,7 +8,6 @@ interface NavigationProps {
   onConnectWallet: () => void;
   onNavigate: (page: string) => void;
   currentPage: string;
-  onAdminLogin?: () => void;
   onUserAuth?: () => void;
   user?: SupabaseAuthUser | null;
 }
@@ -18,7 +17,6 @@ export function Navigation({
   onConnectWallet,
   onNavigate,
   currentPage,
-  onAdminLogin,
   onUserAuth,
   user,
 }: NavigationProps) {
@@ -43,6 +41,8 @@ export function Navigation({
     { id: 'home', label: 'Home' },
     { id: 'campaigns', label: 'Campaigns' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'about', label: 'About Us' },
+    { id: 'contact', label: 'Contact Us' },
   ];
 
   const truncateAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -81,16 +81,6 @@ export function Navigation({
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            {onAdminLogin && (
-              <button
-                onClick={onAdminLogin}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
-                title="Admin Login"
-              >
-                <Settings className="w-4 h-4" />
-                <span className="text-sm font-medium">Admin</span>
-              </button>
-            )}
             {user ? (
               <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-200">
                 <User className="w-4 h-4 text-gray-600" />
@@ -168,18 +158,6 @@ export function Navigation({
                   {item.label}
                 </button>
               ))}
-              {onAdminLogin && (
-                <button
-                  onClick={() => {
-                    onAdminLogin();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="mx-4 flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span className="text-sm font-medium">Admin Login</span>
-                </button>
-              )}
               {user ? (
                 <div className="mx-4 flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex items-center gap-2">

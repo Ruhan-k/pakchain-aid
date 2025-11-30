@@ -8,7 +8,31 @@
  * with existing components.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Get API URL from environment variable or use default
+// For production, this should be set in Azure Static Web Apps configuration
+const getApiBaseUrl = (): string => {
+  // Check if VITE_API_URL is set (build-time variable)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Check if we're in production (deployed on Azure)
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // Default to Azure backend URL if not set
+    return 'https://pakchain-aid-api-b9g0dycsaafegfft.centralus-01.azurewebsites.net';
+  }
+  
+  // Development fallback
+  return 'http://localhost:3000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Log API URL in development
+if (import.meta.env.DEV) {
+  console.log('🔗 API Base URL:', API_BASE_URL);
+  console.log('🌐 Current hostname:', window.location.hostname);
+}
 
 // Types (matching Supabase structure for compatibility)
 export type SessionUser = {
@@ -33,6 +57,8 @@ export type Campaign = {
   created_at: string;
   is_featured: boolean;
   receiving_wallet_address: string | null;
+  platform_fee_address: string | null;
+  platform_fee_amount: string | null;
 };
 
 export type Donation = {
@@ -100,13 +126,30 @@ async function apiRequest<T>(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    
+    // Log request details in development
+    if (import.meta.env.DEV) {
+      console.log('🌐 API Request:', {
+        method: options.method || 'GET',
+        url: fullUrl,
+        hasToken: !!token,
+      });
+    }
+
+    const response = await fetch(fullUrl, {
       ...options,
       headers,
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('❌ API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        url: fullUrl,
+      });
       return {
         data: null,
         error: {
@@ -119,11 +162,32 @@ async function apiRequest<T>(
     const data = await response.json();
     return { data, error: null };
   } catch (error) {
-    console.error('API request error:', error);
+    console.error('❌ API request error:', error);
+    console.error('🔍 Request details:', {
+      endpoint,
+      method: options.method || 'GET',
+      apiBaseUrl: API_BASE_URL,
+      fullUrl: `${API_BASE_URL}${endpoint}`,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorType: error instanceof TypeError ? 'Network/CORS error' : 'Other error',
+    });
+    
+    // Provide more helpful error message
+    let errorMessage = 'Network error';
+    if (error instanceof TypeError) {
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = `Failed to connect to API at ${API_BASE_URL}. Check if the backend is running and CORS is configured correctly.`;
+      } else {
+        errorMessage = error.message;
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return {
       data: null,
       error: {
-        message: error instanceof Error ? error.message : 'Network error',
+        message: errorMessage,
         code: 'NETWORK_ERROR',
       },
     };
@@ -324,32 +388,69 @@ export const supabase = {
           },
 
           async maybeSingle() {
-            const result = await apiRequest<any>(currentQuery);
-            if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-              return { data: result.data[0], error: null };
+            const result = await apiRequest<{ data: any[] } | any[]>(currentQuery);
+            if (result.error) {
+              return { data: null, error: result.error };
+            }
+            
+            // Handle nested data structure
+            let dataArray: any[] = [];
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                dataArray = result.data;
+              } else if (result.data.data && Array.isArray(result.data.data)) {
+                dataArray = result.data.data;
+              }
+            }
+            
+            if (dataArray.length > 0) {
+              return { data: dataArray[0], error: null };
             }
             return { data: null, error: null };
           },
 
           async single() {
-            const result = await apiRequest<any>(currentQuery);
+            const result = await apiRequest<{ data: any[] } | any[]>(currentQuery);
             if (result.error) {
               return { data: null, error: result.error };
             }
-            if (Array.isArray(result.data) && result.data.length === 1) {
-              return { data: result.data[0], error: null };
+            
+            // Handle nested data structure
+            let dataArray: any[] = [];
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                dataArray = result.data;
+              } else if (result.data.data && Array.isArray(result.data.data)) {
+                dataArray = result.data.data;
+              }
+            }
+            
+            if (dataArray.length === 1) {
+              return { data: dataArray[0], error: null };
             }
             return { data: null, error: { message: 'Expected single result' } };
           },
 
           async then<T>(resolve: (value: { data: T[]; error: null }) => void) {
-            const result = await apiRequest<T[]>(currentQuery);
+            const result = await apiRequest<{ data: T[] } | T[]>(currentQuery);
             if (result.error) {
               // Return empty array on error to prevent crashes
               resolve({ data: [], error: null });
               return;
             }
-            resolve({ data: Array.isArray(result.data) ? result.data : [], error: null });
+            
+            // Handle nested data structure: { data: [...] } or [...]
+            let dataArray: T[] = [];
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                dataArray = result.data;
+              } else if (result.data.data && Array.isArray(result.data.data)) {
+                // Backend returned { data: [...] }
+                dataArray = result.data.data;
+              }
+            }
+            
+            resolve({ data: dataArray, error: null });
           },
         };
 
@@ -359,14 +460,30 @@ export const supabase = {
       insert(values: unknown) {
         return {
           select() {
-            return apiRequest<any[]>(baseEndpoint, {
+            return apiRequest<{ data: any[] }>(baseEndpoint, {
               method: 'POST',
               body: JSON.stringify(values),
             }).then((result) => {
               if (result.error) {
                 return { data: [], error: result.error };
               }
-              return { data: Array.isArray(result.data) ? result.data : [], error: null };
+              // Backend returns { data: [...] }, so result.data is { data: [...] }
+              // We need to extract the inner data array
+              if (result.data) {
+                if (result.data.data && Array.isArray(result.data.data)) {
+                  // Backend returned { data: [...] } - extract the array
+                  return { data: result.data.data, error: null };
+                } else if (Array.isArray(result.data)) {
+                  // Backend returned [...] directly (shouldn't happen but handle it)
+                  return { data: result.data, error: null };
+                } else if (result.data.data && !Array.isArray(result.data.data)) {
+                  // Backend returned { data: {...} } - single object, wrap in array
+                  return { data: [result.data.data], error: null };
+                }
+              }
+              // Fallback: empty array
+              console.warn('Unexpected API response format:', result.data);
+              return { data: [], error: null };
             });
           },
 
@@ -455,4 +572,29 @@ export const supabase = {
     return api;
   },
 };
+
+/**
+ * Send contact form email
+ */
+export async function sendContactEmail(formData: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/contact`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(formData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to send message' }));
+    throw new Error(error.message || 'Failed to send message');
+  }
+
+  return response.json();
+}
 

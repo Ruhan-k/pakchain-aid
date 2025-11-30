@@ -11,10 +11,12 @@ import { Chatbot } from './components/Chatbot';
 import { AdminLogin } from './components/AdminLogin';
 import { AdminDashboard } from './components/AdminDashboard';
 import { UserAuth } from './components/UserAuth';
+import { About } from './components/About';
+import { Contact } from './components/Contact';
 import { getAdminSession, clearAdminSession, Admin } from './lib/adminAuth';
 import { ethers } from 'ethers';
 
-type Page = 'home' | 'campaigns' | 'dashboard';
+type Page = 'home' | 'campaigns' | 'dashboard' | 'about' | 'contact';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -23,9 +25,28 @@ function App() {
   const [showDonationModal, setShowDonationModal] = useState(false);
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [admin, setAdmin] = useState<Admin | null>(null);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(window.location.pathname === '/admin');
   const [showUserAuth, setShowUserAuth] = useState(false);
   const [user, setUser] = useState<SupabaseAuthUser | null>(null);
+
+  // Check URL path for /admin route when path changes
+  useEffect(() => {
+    const checkPath = () => {
+      const path = window.location.pathname;
+      if (path === '/admin') {
+        setShowAdminLogin(true);
+      } else {
+        setShowAdminLogin(false);
+      }
+    };
+
+    // Listen for popstate (back/forward buttons)
+    window.addEventListener('popstate', checkPath);
+
+    return () => {
+      window.removeEventListener('popstate', checkPath);
+    };
+  }, []);
 
   const checkUserSession = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -47,6 +68,8 @@ function App() {
   const handleAdminLogin = useCallback((loggedInAdmin: Admin) => {
     setAdmin(loggedInAdmin);
     setShowAdminLogin(false);
+    // Update URL to remove /admin from path after successful login
+    window.history.replaceState({}, '', '/');
   }, []);
 
   const handleAdminLogout = useCallback(() => {
@@ -210,7 +233,11 @@ function App() {
       await checkNetwork();
     } catch (error) {
       console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet. Please make sure MetaMask is installed.');
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const mobileMessage = isMobile 
+        ? '\n\nOn mobile, open this site inside your Ethereum wallet app\'s browser (e.g. MetaMask, Trust Wallet) to connect your wallet.'
+        : '';
+      alert('Failed to connect wallet. Please make sure MetaMask is installed.' + mobileMessage);
     }
   };
 
@@ -262,9 +289,24 @@ function App() {
     }
 
     try {
-      // Send direct wallet-to-wallet transaction
-      const { sendDonationDirect, verifyTransaction, getProvider } = await import('./lib/web3');
-      const txHash = await sendDonationDirect(selectedCampaign.receiving_wallet_address, amount);
+      // Send donation with platform fee if enabled
+      const { sendDonationWithFee, sendDonationDirect, verifyTransaction, getProvider } = await import('./lib/web3');
+      
+      let txHash: string;
+      
+      // Check if platform fee is enabled
+      if (selectedCampaign.platform_fee_address && selectedCampaign.platform_fee_amount) {
+        const platformFeeEth = ethers.formatEther(selectedCampaign.platform_fee_amount);
+        txHash = await sendDonationWithFee(
+          selectedCampaign.receiving_wallet_address,
+          selectedCampaign.platform_fee_address,
+          amount,
+          platformFeeEth,
+        );
+      } else {
+        // No platform fee, use direct donation
+        txHash = await sendDonationDirect(selectedCampaign.receiving_wallet_address, amount);
+      }
 
       // Wait for transaction to be mined
       const provider = await getProvider();
@@ -426,6 +468,10 @@ function App() {
         );
       case 'dashboard':
         return <Dashboard />;
+      case 'about':
+        return <About />;
+      case 'contact':
+        return <Contact />;
       default:
         return <Hero onExplore={() => setCurrentPage('campaigns')} />;
     }
@@ -436,12 +482,15 @@ function App() {
     return <AdminDashboard admin={admin} onLogout={handleAdminLogout} />;
   }
 
-  // If showing admin login, show login page
-  if (showAdminLogin) {
+  // If showing admin login (via /admin URL), show login page
+  if (showAdminLogin || window.location.pathname === '/admin') {
     return (
       <AdminLogin
         onLoginSuccess={handleAdminLogin}
-        onCancel={() => setShowAdminLogin(false)}
+        onCancel={() => {
+          setShowAdminLogin(false);
+          window.history.replaceState({}, '', '/');
+        }}
       />
     );
   }
@@ -453,7 +502,6 @@ function App() {
         onConnectWallet={handleConnectWallet}
         onNavigate={(page) => setCurrentPage(page as Page)}
         currentPage={currentPage}
-        onAdminLogin={() => setShowAdminLogin(true)}
         onUserAuth={() => setShowUserAuth(true)}
         user={user}
       />
@@ -510,6 +558,14 @@ function App() {
                     Analytics
                   </button>
                 </li>
+                <li>
+                  <button
+                    onClick={() => setCurrentPage('about')}
+                    className="hover:text-blue-600 transition-colors"
+                  >
+                    About Us
+                  </button>
+                </li>
               </ul>
             </div>
             <div>
@@ -549,6 +605,9 @@ function App() {
           <div className="border-t border-gray-200 pt-8">
             <p className="text-center text-sm text-gray-600">
               © 2024 PakChain Aid. All transactions recorded on Ethereum blockchain.
+            </p>
+            <p className="text-center text-xs text-gray-500 mt-2">
+              Blockchain course project under the guidance of Dr. Shahbaz Siddiqui, PhD
             </p>
           </div>
         </div>

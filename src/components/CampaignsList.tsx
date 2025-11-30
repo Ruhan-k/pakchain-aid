@@ -25,7 +25,7 @@ export function CampaignsList({
   useEffect(() => {
     let isMounted = true;
 
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = async (): Promise<void> => {
     try {
       setLoading(true);
       let query = supabase.from('campaigns').select('*');
@@ -38,30 +38,39 @@ export function CampaignsList({
           .order('is_featured', { ascending: false })
           .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching campaigns:', error);
         if (isMounted) {
-      setCampaigns(data || []);
+          setCampaigns([]);
         }
+        throw error; // Re-throw for polling error handler
+      }
+      
+      // Handle nested data structure from API
+      let campaignsArray = data;
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.data) {
+        campaignsArray = Array.isArray(data.data) ? data.data : [data.data];
+      }
+      
+      if (isMounted) {
+        setCampaigns(Array.isArray(campaignsArray) ? campaignsArray : []);
+      }
     } catch (err) {
       console.error('Error fetching campaigns:', err);
+      throw err; // Re-throw for polling error handler
     } finally {
-        if (isMounted) {
+      if (isMounted) {
       setLoading(false);
-        }
+      }
     }
   };
 
-    fetchCampaigns();
-    const subscription = supabase
-      .channel('campaigns_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, () => {
-        fetchCampaigns();
-      })
-      .subscribe();
+    // Fetch campaigns once on mount or when filter changes
+    void fetchCampaigns();
 
+    // Cleanup on unmount
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
   }, [filter]);
 

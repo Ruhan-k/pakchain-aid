@@ -32,6 +32,8 @@ type CampaignFormState = {
   status: 'active' | 'inactive' | 'completed';
   is_featured: boolean;
   receiving_wallet_address: string;
+  platform_fee_address: string;
+  platform_fee_amount: string;
 };
 
 type DonationWithCampaign = Donation & {
@@ -57,6 +59,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
     status: 'active',
     is_featured: false,
     receiving_wallet_address: '',
+    platform_fee_address: '',
+    platform_fee_amount: '',
   });
 
   const fetchData = useCallback(async () => {
@@ -70,8 +74,17 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
             .order('created_at', { ascending: false });
           if (campaignsError) {
             console.error('Error fetching campaigns:', campaignsError);
+            setCampaigns([]);
+            break;
           }
-          setCampaigns(campaignsData || []);
+          
+          // Handle nested data structure from API
+          let campaignsArray = campaignsData;
+          if (campaignsData && typeof campaignsData === 'object' && !Array.isArray(campaignsData) && campaignsData.data) {
+            campaignsArray = Array.isArray(campaignsData.data) ? campaignsData.data : [campaignsData.data];
+          }
+          
+          setCampaigns(Array.isArray(campaignsArray) ? campaignsArray : []);
           break;
         }
         case 'donations': {
@@ -144,8 +157,24 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         return;
       }
 
+      // Validate platform fee address if provided
+      if (newCampaign.platform_fee_address && !ethers.isAddress(newCampaign.platform_fee_address)) {
+        alert('Please enter a valid Ethereum wallet address for platform fee collection');
+        return;
+      }
+
+      // Validate platform fee amount if address is provided
+      if (newCampaign.platform_fee_address && (!newCampaign.platform_fee_amount || parseFloat(newCampaign.platform_fee_amount) <= 0)) {
+        alert('Please enter a valid platform fee amount (greater than 0) when platform fee address is set');
+        return;
+      }
+
       const goalInWei = ethers.parseEther(newCampaign.goal_amount).toString();
-      const { data, error } = await supabase.from('campaigns').insert({
+      const platformFeeInWei = newCampaign.platform_fee_amount 
+        ? ethers.parseEther(newCampaign.platform_fee_amount).toString()
+        : null;
+
+      const campaignData = {
         title: newCampaign.title.trim(),
         description: newCampaign.description.trim() || null,
         goal_amount: goalInWei,
@@ -154,19 +183,37 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         status: newCampaign.status,
         is_featured: newCampaign.is_featured,
         receiving_wallet_address: newCampaign.receiving_wallet_address.trim(),
+        platform_fee_address: newCampaign.platform_fee_address.trim() || null,
+        platform_fee_amount: platformFeeInWei,
         // created_by can be null since admin doesn't use Supabase Auth
-      }).select();
+      };
+
+      console.log('📤 Creating campaign with data:', campaignData);
+      console.log('🔗 API Base URL:', window.location.origin);
+
+      const { data, error } = await supabase.from('campaigns').insert(campaignData).select();
+
+      console.log('📥 Campaign creation response:', { data, error });
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Supabase error:', error);
         console.error('Error code:', error.code);
         console.error('Error message:', error.message);
         console.error('Error details:', error.details);
-        alert(`Failed to create campaign: ${error.message || 'Unknown error'}\n\nCheck browser console (F12) for details.`);
+        console.error('Full error object:', JSON.stringify(error, null, 2));
+        alert(`Failed to create campaign: ${error.message || 'Unknown error'}\n\nError code: ${error.code || 'N/A'}\n\nCheck browser console (F12) for details.`);
         return;
       }
 
-      if (data) {
+      // Handle nested data structure: data might be { data: [...] } or [...]
+      let campaignsArray = data;
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.data) {
+        campaignsArray = Array.isArray(data.data) ? data.data : [data.data];
+        console.log('🔧 Extracted campaigns array from nested structure:', campaignsArray);
+      }
+
+      if (campaignsArray && Array.isArray(campaignsArray) && campaignsArray.length > 0) {
+        console.log('✅ Campaign created successfully:', campaignsArray[0]);
         setShowCreateModal(false);
         setNewCampaign({
           title: '',
@@ -176,11 +223,21 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
           status: 'active',
           is_featured: false,
           receiving_wallet_address: '',
+          platform_fee_address: '',
+          platform_fee_amount: '',
         });
+        await refreshData();
+        alert('Campaign created successfully!');
+      } else {
+        console.warn('⚠️ Campaign creation returned no data:', { data, campaignsArray });
+        console.warn('⚠️ Data type:', typeof data, 'Is array:', Array.isArray(data));
+        alert('Campaign creation completed but no data returned. Please refresh and check if the campaign was created.');
         await refreshData();
       }
     } catch (error) {
-      console.error('Error creating campaign:', error);
+      console.error('❌ Exception creating campaign:', error);
+      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       alert(`Failed to create campaign: ${errorMessage}\n\nCheck browser console (F12) for details.`);
     }
@@ -194,14 +251,32 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         return;
       }
 
+      // Validate platform fee if provided
+      if (editingCampaign.platform_fee_address && !ethers.isAddress(editingCampaign.platform_fee_address)) {
+        alert('Please enter a valid Ethereum wallet address for platform fee collection');
+        return;
+      }
+
       const updates: Partial<Campaign> & { updated_at: string } = {
         title: editingCampaign.title,
         description: editingCampaign.description,
         status: editingCampaign.status,
         is_featured: editingCampaign.is_featured,
         receiving_wallet_address: editingCampaign.receiving_wallet_address.trim(),
+        platform_fee_address: editingCampaign.platform_fee_address?.trim() || null,
         updated_at: new Date().toISOString(),
       };
+
+      // Handle platform fee amount
+      if (editingCampaign.platform_fee_address && editingCampaign.platform_fee_amount) {
+        if (editingCampaign.platform_fee_amount.includes('.')) {
+          updates.platform_fee_amount = ethers.parseEther(editingCampaign.platform_fee_amount).toString();
+        } else {
+          updates.platform_fee_amount = editingCampaign.platform_fee_amount;
+        }
+      } else {
+        updates.platform_fee_amount = null;
+      }
 
       if (editingCampaign.goal_amount && !editingCampaign.goal_amount.includes('.')) {
         // Already in wei
@@ -453,6 +528,54 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
                                 <p className="text-xs text-gray-500 mt-1">
                                   Ethereum address that will receive donations
                                 </p>
+                              </div>
+                              <div className="border-t border-gray-200 pt-3 mt-3">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Platform Fee (Optional)</h4>
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                      Platform Fee Address
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={editingCampaign.platform_fee_address || ''}
+                                      onChange={(e) =>
+                                        setEditingCampaign({
+                                          ...editingCampaign,
+                                          platform_fee_address: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs"
+                                      placeholder="0x... (optional)"
+                                    />
+                                  </div>
+                                  {editingCampaign.platform_fee_address && (
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                        Platform Fee Amount (ETH)
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="0.001"
+                                        min="0"
+                                        value={editingCampaign.platform_fee_amount 
+                                          ? (editingCampaign.platform_fee_amount.includes('.') 
+                                              ? editingCampaign.platform_fee_amount 
+                                              : ethers.formatEther(editingCampaign.platform_fee_amount))
+                                          : ''}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          setEditingCampaign({
+                                            ...editingCampaign,
+                                            platform_fee_amount: value,
+                                          });
+                                        }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+                                        placeholder="0.001"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex gap-2">
                                 <select
@@ -894,6 +1017,27 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   placeholder="https://..."
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Upload an image to a hosting service (e.g.,{' '}
+                  <a
+                    href="https://imgur.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    Imgur
+                  </a>
+                  ,{' '}
+                  <a
+                    href="https://cloudinary.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    Cloudinary
+                  </a>
+                  ) and paste the direct image URL here. The URL should end with .jpg, .png, .gif, etc.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -911,6 +1055,49 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
                 <p className="text-xs text-gray-500 mt-1">
                   Ethereum address that will receive donations for this campaign
                 </p>
+              </div>
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Platform Fee (Optional)</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Platform Fee Address (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newCampaign.platform_fee_address}
+                      onChange={(e) =>
+                        setNewCampaign({ ...newCampaign, platform_fee_address: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                      placeholder="0x... (leave empty to disable platform fee)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ethereum address to receive platform fees. If set, platform fee will be collected on each donation.
+                    </p>
+                  </div>
+                  {newCampaign.platform_fee_address && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Platform Fee Amount (ETH)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        value={newCampaign.platform_fee_amount}
+                        onChange={(e) =>
+                          setNewCampaign({ ...newCampaign, platform_fee_amount: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder="0.001"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Fee amount per transaction. This will be added to the donation amount the user pays.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-4">
                 <div>
