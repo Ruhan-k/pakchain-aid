@@ -72,6 +72,48 @@ export const switchToSepolia = async () => {
   }
 };
 
+// Complete ABI for PakChainAid smart contract
+export const PAKCHAIN_AID_CONTRACT_ABI = [
+  // Campaign Management
+  'function createCampaign(string memory _title, string memory _description, address _recipientAddress, uint256 _goalAmount, bool _isFeatured) external returns (uint256)',
+  'function updateCampaign(uint256 _campaignId, string memory _title, string memory _description, bool _isActive, bool _isFeatured) external',
+  'function closeCampaign(uint256 _campaignId) external',
+  
+  // Donation Functions
+  'function donate(uint256 _campaignId) payable',
+  
+  // View Functions
+  'function getCampaign(uint256 _campaignId) view returns (tuple(uint256 id, string title, string description, address recipientAddress, uint256 goalAmount, uint256 currentAmount, uint256 donationCount, bool isActive, bool isFeatured, uint256 createdAt, uint256 updatedAt))',
+  'function getCampaignDonations(uint256 _campaignId) view returns (tuple(uint256 campaignId, address donor, uint256 amount, uint256 timestamp, bool exists)[])',
+  'function getCampaignTotal(uint256 _campaignId) view returns (uint256)',
+  'function getTotalDonations() view returns (uint256)',
+  'function getDonorTotal(address _donor) view returns (uint256)',
+  'function getDonorCount(address _donor) view returns (uint256)',
+  'function getDonorHistory(address _donor) view returns (uint256[])',
+  'function getActiveCampaignCount() view returns (uint256)',
+  'function getTotalCampaignCount() view returns (uint256)',
+  'function campaigns(uint256) view returns (uint256 id, string title, string description, address recipientAddress, uint256 goalAmount, uint256 currentAmount, uint256 donationCount, bool isActive, bool isFeatured, uint256 createdAt, uint256 updatedAt)',
+  
+  // Admin Functions
+  'function setPlatformFee(address _platformFeeAddress, uint256 _platformFeePercentage) external',
+  'function pause() external',
+  'function unpause() external',
+  'function transferOwnership(address _newOwner) external',
+  
+  // State Variables
+  'function owner() view returns (address)',
+  'function platformFeeAddress() view returns (address)',
+  'function platformFeePercentage() view returns (uint256)',
+  'function paused() view returns (bool)',
+  
+  // Events
+  'event CampaignCreated(uint256 indexed campaignId, string title, address indexed recipientAddress, uint256 goalAmount, address indexed creator)',
+  'event DonationReceived(uint256 indexed campaignId, address indexed donor, uint256 amount, uint256 platformFee, uint256 netAmount, uint256 timestamp)',
+  'event CampaignUpdated(uint256 indexed campaignId, string title, bool isActive, bool isFeatured)',
+  'event CampaignClosed(uint256 indexed campaignId, uint256 totalRaised, uint256 donationCount)',
+];
+
+// Legacy ABI (kept for backward compatibility)
 export const DONATION_CONTRACT_ABI = [
   'function donate(uint256 campaignId) payable',
   'function getCampaignDonations(uint256 campaignId) view returns (uint256)',
@@ -212,4 +254,122 @@ export const verifyTransaction = async (
 export const getEtherscanUrl = (txHash: string, chainId: number = 11155111) => {
   const baseUrl = chainId === 11155111 ? 'https://sepolia.etherscan.io' : 'https://etherscan.io';
   return `${baseUrl}/tx/${txHash}`;
+};
+
+// ============ Smart Contract Interaction Functions ============
+
+/**
+ * Get the PakChainAid contract instance
+ * @param contractAddress The deployed contract address
+ * @returns Contract instance
+ */
+export const getPakChainAidContract = async (contractAddress: string) => {
+  const signer = await getSigner();
+  return new ethers.Contract(contractAddress, PAKCHAIN_AID_CONTRACT_ABI, signer);
+};
+
+/**
+ * Get the PakChainAid contract instance (read-only)
+ * @param contractAddress The deployed contract address
+ * @returns Contract instance (read-only)
+ */
+export const getPakChainAidContractReadOnly = async (contractAddress: string) => {
+  const provider = await getProvider();
+  return new ethers.Contract(contractAddress, PAKCHAIN_AID_CONTRACT_ABI, provider);
+};
+
+/**
+ * Donate to a campaign using the smart contract
+ * @param contractAddress The deployed contract address
+ * @param campaignId Campaign ID (on-chain)
+ * @param amountInEth Amount to donate in ETH
+ * @returns Transaction hash
+ */
+export const donateViaContract = async (
+  contractAddress: string,
+  campaignId: number,
+  amountInEth: string,
+): Promise<string> => {
+  const contract = await getPakChainAidContract(contractAddress);
+  const tx = await contract.donate(campaignId, {
+    value: ethers.parseEther(amountInEth),
+  });
+  return tx.hash;
+};
+
+/**
+ * Get campaign details from smart contract
+ * @param contractAddress The deployed contract address
+ * @param campaignId Campaign ID
+ * @returns Campaign details
+ */
+export const getCampaignFromContract = async (
+  contractAddress: string,
+  campaignId: number,
+) => {
+  const contract = await getPakChainAidContractReadOnly(contractAddress);
+  return await contract.getCampaign(campaignId);
+};
+
+/**
+ * Get total donations for a campaign from smart contract
+ * @param contractAddress The deployed contract address
+ * @param campaignId Campaign ID
+ * @returns Total amount in wei
+ */
+export const getCampaignTotalFromContract = async (
+  contractAddress: string,
+  campaignId: number,
+): Promise<bigint> => {
+  const contract = await getPakChainAidContractReadOnly(contractAddress);
+  return await contract.getCampaignTotal(campaignId);
+};
+
+/**
+ * Get all donations for a campaign from smart contract
+ * @param contractAddress The deployed contract address
+ * @param campaignId Campaign ID
+ * @returns Array of donations
+ */
+export const getCampaignDonationsFromContract = async (
+  contractAddress: string,
+  campaignId: number,
+) => {
+  const contract = await getPakChainAidContractReadOnly(contractAddress);
+  return await contract.getCampaignDonations(campaignId);
+};
+
+/**
+ * Get total donations across all campaigns from smart contract
+ * @param contractAddress The deployed contract address
+ * @returns Total amount in wei
+ */
+export const getTotalDonationsFromContract = async (
+  contractAddress: string,
+): Promise<bigint> => {
+  const contract = await getPakChainAidContractReadOnly(contractAddress);
+  return await contract.getTotalDonations();
+};
+
+/**
+ * Get donor statistics from smart contract
+ * @param contractAddress The deployed contract address
+ * @param donorAddress Donor wallet address
+ * @returns Object with total donated and donation count
+ */
+export const getDonorStatsFromContract = async (
+  contractAddress: string,
+  donorAddress: string,
+) => {
+  const contract = await getPakChainAidContractReadOnly(contractAddress);
+  const [total, count, history] = await Promise.all([
+    contract.getDonorTotal(donorAddress),
+    contract.getDonorCount(donorAddress),
+    contract.getDonorHistory(donorAddress),
+  ]);
+  return {
+    total: total.toString(),
+    count: count.toString(),
+    history: history.map((id: bigint) => Number(id)),
+  };
 };
