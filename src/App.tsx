@@ -283,42 +283,71 @@ function App() {
   const handleDonate = async (amount: string): Promise<string | null> => {
     if (!selectedCampaign || !walletAddress) return null;
 
-    // Check if campaign has receiving wallet address
-    if (!selectedCampaign.receiving_wallet_address) {
-      throw new Error('This campaign does not have a receiving wallet address configured. Please contact the administrator.');
-    }
-
     try {
-      // Send donation with platform fee if enabled
-      const { sendDonationWithFee, sendDonationDirect, verifyTransaction, getProvider } = await import('./lib/web3');
+      const { donateViaContract, sendDonationDirect, sendDonationWithFee, verifyTransaction, getProvider } = await import('./lib/web3');
+      const { getContractAddress } = await import('./lib/contractConfig');
       
       let txHash: string;
       
-      // Check if platform fee is enabled
-      if (selectedCampaign.platform_fee_address && selectedCampaign.platform_fee_amount) {
-        const platformFeeEth = ethers.formatEther(selectedCampaign.platform_fee_amount);
-        txHash = await sendDonationWithFee(
-          selectedCampaign.receiving_wallet_address,
-          selectedCampaign.platform_fee_address,
-          amount,
-          platformFeeEth,
+      // Try to use smart contract if campaign has on-chain ID
+      // Otherwise fall back to direct transfer
+      if (selectedCampaign.on_chain_campaign_id != null && selectedCampaign.on_chain_campaign_id > 0) {
+        // Use smart contract
+        const contractAddress = getContractAddress();
+        txHash = await donateViaContract(
+          contractAddress,
+          selectedCampaign.on_chain_campaign_id,
+          amount
         );
       } else {
-        // No platform fee, use direct donation
-        txHash = await sendDonationDirect(selectedCampaign.receiving_wallet_address, amount);
+        // Fallback to direct transfer (existing behavior)
+        if (!selectedCampaign.receiving_wallet_address) {
+          throw new Error('This campaign does not have a receiving wallet address configured. Please contact the administrator.');
+        }
+
+        // Check if platform fee is enabled
+        if (selectedCampaign.platform_fee_address && selectedCampaign.platform_fee_amount) {
+          const platformFeeEth = ethers.formatEther(selectedCampaign.platform_fee_amount);
+          txHash = await sendDonationWithFee(
+            selectedCampaign.receiving_wallet_address,
+            selectedCampaign.platform_fee_address,
+            amount,
+            platformFeeEth,
+          );
+        } else {
+          // No platform fee, use direct donation
+          txHash = await sendDonationDirect(selectedCampaign.receiving_wallet_address, amount);
+        }
       }
 
       // Wait for transaction to be mined
       const provider = await getProvider();
-      await provider.waitForTransaction(txHash);
+      const receipt = await provider.waitForTransaction(txHash);
+
+      if (!receipt) {
+        throw new Error('Transaction receipt not found');
+      }
 
       // Verify transaction on-chain
       const amountInWei = ethers.parseEther(amount).toString();
-      const verification = await verifyTransaction(
-        txHash,
-        selectedCampaign.receiving_wallet_address,
-        amountInWei,
-      );
+      let verification;
+      
+      if (selectedCampaign.on_chain_campaign_id != null && selectedCampaign.on_chain_campaign_id > 0) {
+        // For contract donations, verification is handled by the contract
+        const block = await provider.getBlock(receipt.blockNumber);
+        verification = {
+          verified: receipt.status === 1,
+          blockNumber: receipt.blockNumber,
+          timestamp: block?.timestamp,
+        };
+      } else {
+        // For direct transfers, verify as before
+        verification = await verifyTransaction(
+          txHash,
+          selectedCampaign.receiving_wallet_address!,
+          amountInWei,
+        );
+      }
 
       if (!verification.verified) {
         throw new Error('Transaction verification failed. Please contact support.');

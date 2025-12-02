@@ -59,6 +59,7 @@ export type Campaign = {
   receiving_wallet_address: string | null;
   platform_fee_address: string | null;
   platform_fee_amount: string | null;
+  on_chain_campaign_id?: number | null; // Optional on-chain campaign ID for smart contract integration
 };
 
 export type Donation = {

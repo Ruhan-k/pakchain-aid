@@ -160,7 +160,6 @@ export const sendDonationWithFee = async (
     }
 
     const platformFeeWei = ethers.parseEther(platformFeeAmountInEth);
-    const totalAmountWei = donationAmountWei + platformFeeWei;
 
     // Send platform fee first
     const feeTx = await signer.sendTransaction({
@@ -372,4 +371,55 @@ export const getDonorStatsFromContract = async (
     count: count.toString(),
     history: history.map((id: bigint) => Number(id)),
   };
+};
+
+/**
+ * Create a campaign on-chain using the smart contract
+ * @param contractAddress The deployed contract address
+ * @param title Campaign title
+ * @param description Campaign description
+ * @param recipientAddress Address to receive donations
+ * @param goalAmountInEth Goal amount in ETH
+ * @param isFeatured Whether campaign should be featured
+ * @returns Campaign ID (on-chain)
+ */
+export const createCampaignOnChain = async (
+  contractAddress: string,
+  title: string,
+  description: string,
+  recipientAddress: string,
+  goalAmountInEth: string,
+  isFeatured: boolean = false,
+): Promise<number> => {
+  const contract = await getPakChainAidContract(contractAddress);
+  const goalAmountWei = ethers.parseEther(goalAmountInEth);
+  
+  const tx = await contract.createCampaign(
+    title,
+    description,
+    recipientAddress,
+    goalAmountWei,
+    isFeatured
+  );
+  
+  const receipt = await tx.wait();
+  
+  // Get the campaign ID from the event
+  const event = receipt.logs.find((log: any) => {
+    try {
+      const parsed = contract.interface.parseLog(log);
+      return parsed?.name === 'CampaignCreated';
+    } catch {
+      return false;
+    }
+  });
+  
+  if (event) {
+    const parsed = contract.interface.parseLog(event);
+    return Number(parsed?.args.campaignId);
+  }
+  
+  // Fallback: get the latest campaign count
+  const totalCampaigns = await contract.getTotalCampaignCount();
+  return Number(totalCampaigns);
 };
